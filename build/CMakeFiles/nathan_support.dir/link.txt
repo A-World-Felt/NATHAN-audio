@@ -1,0 +1,2 @@
+/usr/bin/ar qc libnathan_support.a CMakeFiles/nathan_support.dir/src/wav_loader.cpp.o CMakeFiles/nathan_support.dir/src/hrtf_profile.cpp.o CMakeFiles/nathan_support.dir/src/al_hrtf_device.cpp.o CMakeFiles/nathan_support.dir/src/input_keys.cpp.o
+/usr/bin/ranlib libnathan_support.a

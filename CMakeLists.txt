@@ -7,10 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(OpenAL CONFIG REQUIRED)
 find_package(mysofa CONFIG REQUIRED)
 
-add_executable(nathan_audio main.cpp)
-
-target_link_libraries(nathan_audio PRIVATE OpenAL::OpenAL)
-
 add_library(nathan_support STATIC
     src/wav_loader.cpp
     src/hrtf_profile.cpp

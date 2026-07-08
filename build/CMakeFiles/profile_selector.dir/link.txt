@@ -1,0 +1,1 @@
+/usr/bin/c++  -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/profile_selector.dir/profile_selector.cpp.o -o profile_selector  -Wl,-rpath,/opt/homebrew/opt/openal-soft/lib -Wl,-rpath,/opt/homebrew/lib libnathan_support.a /opt/homebrew/opt/openal-soft/lib/libopenal.1.25.2.dylib /opt/homebrew/lib/libmysofa.1.3.3.dylib
