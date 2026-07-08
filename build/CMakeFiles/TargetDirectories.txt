@@ -1,0 +1,7 @@
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/nathan_audio.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/nathan_support.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/profile_selector.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/spatial_tests.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/game_simulation.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/micst/Documents/nathan-audio/build/CMakeFiles/ZERO_CHECK.dir
