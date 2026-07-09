@@ -24,3 +24,6 @@ target_link_libraries(spatial_tests PRIVATE nathan_support)
 
 add_executable(game_simulation game_simulation.cpp)
 target_link_libraries(game_simulation PRIVATE nathan_support)
+
+add_executable(audio_benchmark audio_benchmark.cpp)
+target_link_libraries(audio_benchmark PRIVATE nathan_support)
