@@ -78,9 +78,12 @@ c'est OpenAL Soft qui fait toute la convolution HRTF en interne.
 
 ---
 
-## 3. Chargement audio — WAV mono 16 bits
+## 3. Chargement audio — WAV mono 16/24 bits
 
-Format requis par le projet (contrainte C-AUD-01) : WAV PCM mono 16 bits 44 100 Hz.
+Format requis par le projet (contrainte C-AUD-01) : WAV PCM mono 44 100 Hz.
+Le loader accepte le 16 bits et le 24 bits (certains assets de test, ex. `test-audio4.wav`
+pour `house_benchmark`, sont fournis en 24 bits) ; les deux profondeurs sont normalisées
+vers le même format float `[-1, 1]` en interne.
 
 ```cpp
 // Lecture RIFF chunk par chunk, normalisation float [-1, 1]
@@ -97,7 +100,7 @@ alBufferData(buffer, AL_FORMAT_MONO16, pcm.data(),
 ```
 
 **Verdict :** Chargement robuste. Le loader valide le format et lève une exception si le fichier
-n'est pas mono 16 bits — compatible avec la contrainte C-AUD-01.
+n'est pas mono 16 ou 24 bits — compatible avec la contrainte C-AUD-01.
 
 ---
 
@@ -279,8 +282,8 @@ Tout le code de logique audio est portable. Seuls deux éléments sont condition
 
 | Étape | Objectif | Outil |
 |---|---|---|
-| **Étape 1 — MIPS** | Mesurer la charge CPU réelle du pipeline OpenAL Soft | Intel VTune Profiler |
-| **Étape 3 — RPi Zero** | Valider latence ≤ 25ms (R-AUD-02) et qualité sur vrai MPU | Raspberry Pi Zero 2W |
+| **Étape 1 — MIPS** | Mesurer la charge CPU réelle du pipeline OpenAL Soft | `audio_benchmark` / `house_benchmark` (rapport portable intégré) + Intel VTune Profiler |
+| **Étape 3 — RPi Zero** | Valider latence ≤ 25ms (R-AUD-02) et qualité sur vrai MPU | `house_benchmark` (scénario réaliste 5 pièces, reproductible) sur Raspberry Pi Zero 2W |
 | **Tests APHVE** | Valider R-ACC-04 et R-AUD-01 avec utilisateurs aveugles | Protocole CER |
 
 ---

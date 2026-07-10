@@ -3,8 +3,8 @@
 Prototype de validation du pipeline audio binaural pour la console NATHAN,
 une console de jeu portable accessible aux personnes ayant une déficience visuelle.
 
-Ce repo contient trois programmes de test et un simulateur de scène de jeu,
-tous basés sur OpenAL Soft avec rendu HRTF binaural via profils CIPIC.
+Ce repo contient trois programmes de test, un simulateur de scène de jeu et deux
+benchmarks de performance, tous basés sur OpenAL Soft avec rendu HRTF binaural via profils CIPIC.
 
 ---
 
@@ -52,7 +52,8 @@ cmake --build build
 Les 45 profils CIPIC (`.sofa`) doivent être placés dans `assets/hrtf/`.
 Ils sont téléchargeables sur [sofaconventions.org](https://sofaconventions.org/mediawiki/index.php/Files) — section CIPIC.
 
-Un fichier WAV mono 16 bits 44 100 Hz doit être présent dans `assets/test-audio.wav`.
+Un fichier WAV mono 16 ou 24 bits 44 100 Hz doit être présent dans `assets/test-audio.wav`
+(et `test-audio2.wav` à `test-audio5.wav` pour `house_benchmark`, un son par pièce).
 
 ---
 
@@ -102,6 +103,34 @@ Le son suit la position visuelle de l'acteur en temps réel.
 **Phase 2 — Murs et pièces :** deux pièces séparées par un mur.
 Le son s'atténue et la réverbération change selon que le joueur est dans la même pièce que l'acteur.
 
+### `audio_benchmark`
+Benchmark non-interactif : 4 sources en mouvement continu (cf. R-AUD-03) pendant 30 secondes.
+Mesure le temps de traitement audio par frame (positions + appels OpenAL) et produit un rapport
+de statistiques portable (moyenne/médiane/min/max/percentiles 95e-99e) destiné à être reproduit
+sur les MPU candidats pour guider le choix du processeur.
+
+```powershell
+.\build\Debug\audio_benchmark.exe
+```
+
+Rapport sauvegardé dans `benchmark_results.txt`.
+
+### `house_benchmark`
+Benchmark interactif et réaliste : une grande maison (31×21 cases) à 5 pièces (Cuisine, Salon,
+Chambre, Salle de bain, Salle de musique), chacune avec sa propre source sonore fixe —
+5 sources simultanées, au-delà du minimum R-AUD-03 de 4. Le joueur se déplace avec les flèches ;
+à chaque frame (15ms) la position relative de chaque source, l'atténuation inter-pièces
+(ray casting Bresenham) et la réverbération EFX de la pièce du joueur sont recalculées, avec
+affichage en direct du temps de traitement audio et du FPS réel.
+
+```powershell
+.\build\Debug\house_benchmark.exe
+```
+
+Touches : flèches pour se déplacer, `Q` ou `Échap` pour quitter et sauvegarder le rapport
+complet (frames totales, statistiques par frame, % du budget temps réel 15ms) dans
+`house_benchmark_results.txt`.
+
 ---
 
 ## Structure du projet
@@ -111,15 +140,18 @@ nathan-audio/
 ├── assets/
 │   ├── hrtf/               ← profils CIPIC .sofa (à télécharger)
 │   ├── config/             ← user_profile.txt (généré par profile_selector)
-│   └── test-audio.wav      ← son de test (mono 16 bits 44100 Hz)
+│   ├── test-audio.wav      ← son de test (mono 16 bits 44100 Hz)
+│   └── test-audio2.wav … test-audio5.wav  ← un son par pièce (house_benchmark, mono 16/24 bits)
 ├── src/
 │   ├── al_hrtf_device.h/.cpp   ← cycle de vie device OpenAL + HRTF
 │   ├── hrtf_profile.h/.cpp     ← installation profil CIPIC via libmysofa
 │   ├── input_keys.h/.cpp       ← clavier non-bloquant (Windows + Linux)
-│   └── wav_loader.h/.cpp       ← chargement WAV mono 16 bits
+│   └── wav_loader.h/.cpp       ← chargement WAV mono 16 ou 24 bits
 ├── profile_selector.cpp
 ├── spatial_tests.cpp
 ├── game_simulation.cpp
+├── audio_benchmark.cpp
+├── house_benchmark.cpp
 ├── CMakeLists.txt
 ├── README.md
 └── OPENAL_SOFT_NATHAN.md   ← documentation complète des tests
