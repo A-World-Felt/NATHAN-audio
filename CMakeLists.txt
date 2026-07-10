@@ -27,3 +27,6 @@ target_link_libraries(game_simulation PRIVATE nathan_support)
 
 add_executable(audio_benchmark audio_benchmark.cpp)
 target_link_libraries(audio_benchmark PRIVATE nathan_support)
+
+add_executable(house_benchmark house_benchmark.cpp)
+target_link_libraries(house_benchmark PRIVATE nathan_support)

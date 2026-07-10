@@ -17,6 +17,7 @@ KeyEvent poll_key_nonblocking() {
     }
     if (c == 13) return KeyEvent::Enter;
     if (c == 27) return KeyEvent::Escape;
+    if (c == 'q' || c == 'Q') return KeyEvent::Quit;
     return KeyEvent::None;
 }
 
@@ -69,6 +70,7 @@ KeyEvent poll_key_nonblocking() {
     if (read(STDIN_FILENO, &c, 1) != 1) return KeyEvent::None;
 
     if (c == '\r' || c == '\n') return KeyEvent::Enter;
+    if (c == 'q' || c == 'Q') return KeyEvent::Quit;
     if (c != 27) return KeyEvent::None;  // pas une sequence d'echappement
 
     if (!inputReady()) return KeyEvent::Escape;  // ESC seul

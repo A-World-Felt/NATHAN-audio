@@ -42,7 +42,7 @@ WavAudio load_wav_mono16(const std::string& path) {
     bool haveFmt = false;
     uint16_t audioFormat = 0, numChannels = 0, bitsPerSample = 0;
     uint32_t sampleRate = 0;
-    std::vector<int16_t> rawSamples;
+    std::vector<unsigned char> rawBytes;
     bool haveData = false;
 
     while (f && !haveData) {
@@ -63,8 +63,8 @@ WavAudio load_wav_mono16(const std::string& path) {
             haveFmt = true;
             f.seekg(chunkStart + static_cast<std::streamoff>(chunkSize));
         } else if (std::strncmp(chunkId.data(), "data", 4) == 0) {
-            rawSamples.resize(chunkSize / sizeof(int16_t));
-            f.read(reinterpret_cast<char*>(rawSamples.data()), chunkSize);
+            rawBytes.resize(chunkSize);
+            f.read(reinterpret_cast<char*>(rawBytes.data()), chunkSize);
             haveData = true;
         } else {
             f.seekg(chunkSize, std::ios::cur);
@@ -84,15 +84,27 @@ WavAudio load_wav_mono16(const std::string& path) {
     if (numChannels != 1) {
         throw std::runtime_error("Fichier WAV doit etre mono : " + path);
     }
-    if (bitsPerSample != 16) {
-        throw std::runtime_error("Fichier WAV doit etre en 16 bits : " + path);
+    if (bitsPerSample != 16 && bitsPerSample != 24) {
+        throw std::runtime_error("Fichier WAV doit etre en 16 ou 24 bits : " + path);
     }
 
     WavAudio out;
     out.sampleRate = sampleRate;
-    out.samples.resize(rawSamples.size());
-    for (size_t i = 0; i < rawSamples.size(); ++i) {
-        out.samples[i] = static_cast<float>(rawSamples[i]) / 32768.0f;
+    if (bitsPerSample == 16) {
+        out.samples.resize(rawBytes.size() / 2);
+        for (size_t i = 0; i < out.samples.size(); ++i) {
+            int16_t sample = static_cast<int16_t>(rawBytes[2 * i] | (rawBytes[2 * i + 1] << 8));
+            out.samples[i] = static_cast<float>(sample) / 32768.0f;
+        }
+    } else {  // 24 bits, entier signe little-endian sur 3 octets
+        out.samples.resize(rawBytes.size() / 3);
+        for (size_t i = 0; i < out.samples.size(); ++i) {
+            uint32_t raw = static_cast<uint32_t>(rawBytes[3 * i]) |
+                           (static_cast<uint32_t>(rawBytes[3 * i + 1]) << 8) |
+                           (static_cast<uint32_t>(rawBytes[3 * i + 2]) << 16);
+            int32_t sample = (raw & 0x800000) ? static_cast<int32_t>(raw | 0xFF000000) : static_cast<int32_t>(raw);
+            out.samples[i] = static_cast<float>(sample) / 8388608.0f;
+        }
     }
     return out;
 }

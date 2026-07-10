@@ -10,5 +10,5 @@ struct WavAudio {
 };
 
 // Parcours RIFF generique (chunks ignores hors "fmt "/"data"). Leve
-// std::runtime_error si le fichier n'est pas PCM mono 16 bits.
+// std::runtime_error si le fichier n'est pas PCM mono 16 ou 24 bits.
 WavAudio load_wav_mono16(const std::string& path);
