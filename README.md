@@ -1,10 +1,17 @@
-# nathan-audio — Benchmark audio spatial HRTF
+# nathan-audio — Pipeline audio spatial HRTF
 
-Prototype de validation du pipeline audio binaural pour la console NATHAN,
-une console de jeu portable accessible aux personnes ayant une déficience visuelle.
+Pipeline audio binaural pour la console NATHAN, une console de jeu portable
+accessible aux personnes ayant une déficience visuelle. Le rendu HRTF binaural
+(profils CIPIC via OpenAL Soft) est l'interface principale de la console.
 
-Ce repo contient trois programmes de test, un simulateur de scène de jeu et deux
-benchmarks de performance, tous basés sur OpenAL Soft avec rendu HRTF binaural via profils CIPIC.
+Ce dépôt contient deux choses :
+
+- **`src/` et `tools/`** — le code de production : modules propres destinés au
+  produit final (en cours de développement).
+- **`benchmarks/`** — les prototypes de la phase d'exploration (trois
+  programmes de test, un simulateur de scène de jeu et deux benchmarks de
+  performance), conservés comme référence. Voir
+  [benchmarks/README.md](benchmarks/README.md).
 
 ---
 
@@ -49,15 +56,24 @@ cmake --build build
 
 ## Profils HRTF CIPIC
 
-Les 45 profils CIPIC (`.sofa`) doivent être placés dans `assets/hrtf/`.
-Ils sont téléchargeables sur [sofaconventions.org](https://sofaconventions.org/mediawiki/index.php/Files) — section CIPIC.
+Les 45 profils CIPIC (`.sofa`, ~1,8 Mo chacun) doivent être placés dans
+`assets/hrtf/` à la racine du projet. Ils ne sont **pas** versionnés dans ce
+dépôt (voir `.gitignore`) — à télécharger sur
+[sofaconventions.org](https://sofaconventions.org/mediawiki/index.php/Files),
+section **CIPIC**, et à copier tels quels (`subject_XXX.sofa`) dans
+`assets/hrtf/`.
 
 Un fichier WAV mono 16 ou 24 bits 44 100 Hz doit être présent dans `assets/test-audio.wav`
 (et `test-audio2.wav` à `test-audio5.wav` pour `house_benchmark`, un son par pièce).
 
 ---
 
-## Programmes disponibles
+## Programmes de la phase d'exploration (`benchmarks/`)
+
+Ces programmes sont conservés comme référence — voir
+[benchmarks/README.md](benchmarks/README.md). Ils compilent depuis leur
+nouvel emplacement et se lancent toujours depuis la racine du dépôt (ils
+lisent `assets/...` en chemin relatif) :
 
 ### `profile_selector`
 Sélecteur interactif de profil HRTF CIPIC.
@@ -138,24 +154,47 @@ complet (frames totales, statistiques par frame, % du budget temps réel 15ms) d
 ```
 nathan-audio/
 ├── assets/
-│   ├── hrtf/               ← profils CIPIC .sofa (à télécharger)
+│   ├── hrtf/               ← profils CIPIC .sofa (à télécharger, non versionnés)
 │   ├── config/             ← user_profile.txt (généré par profile_selector)
 │   ├── test-audio.wav      ← son de test (mono 16 bits 44100 Hz)
 │   └── test-audio2.wav … test-audio5.wav  ← un son par pièce (house_benchmark, mono 16/24 bits)
 ├── src/
-│   ├── al_hrtf_device.h/.cpp   ← cycle de vie device OpenAL + HRTF
-│   ├── hrtf_profile.h/.cpp     ← installation profil CIPIC via libmysofa
-│   ├── input_keys.h/.cpp       ← clavier non-bloquant (Windows + Linux)
-│   └── wav_loader.h/.cpp       ← chargement WAV mono 16 ou 24 bits
-├── profile_selector.cpp
-├── spatial_tests.cpp
-├── game_simulation.cpp
-├── audio_benchmark.cpp
-├── house_benchmark.cpp
+│   └── hrtf/               ← module de production : chargement des profils HRTF (DEV-167)
+├── tools/
+│   └── hrtf_check.cpp      ← programme de vérification du module src/hrtf
+├── benchmarks/             ← prototypes de la phase d'exploration (voir benchmarks/README.md)
+│   ├── src/                ← modules de support (WAV, device HRTF, profils, clavier)
+│   ├── profile_selector.cpp
+│   ├── spatial_tests.cpp
+│   ├── game_simulation.cpp
+│   ├── audio_benchmark.cpp
+│   ├── house_benchmark.cpp
+│   └── CMakeLists.txt
 ├── CMakeLists.txt
+├── .gitignore
 ├── README.md
-└── OPENAL_SOFT_NATHAN.md   ← documentation complète des tests
+└── OPENAL_SOFT_NATHAN.md   ← documentation complète des tests d'exploration
 ```
+
+---
+
+## Module de production : chargement des profils HRTF (`src/hrtf/`)
+
+Module C++17 portable (Windows / Linux, cible finale MPU ARM sous Linux) pour
+le chargement des profils HRTF CIPIC dans OpenAL Soft. Couvre uniquement le
+chargement (DEV-167) : découverte des profils disponibles, validation `.sofa`
+via libmysofa, installation dans le dossier scanné par OpenAL Soft, et
+activation du rendu HRTF (`ALC_HRTF_SOFT` / `ALC_HRTF_STATUS_SOFT`). La
+sélection utilisateur et l'interface arrivent dans des tâches ultérieures
+(DEV-168, DEV-169).
+
+```powershell
+.\build\Debug\hrtf_check.exe
+```
+
+`hrtf_check` liste les profils trouvés dans `assets/hrtf/`, installe le
+premier et affiche le statut HRTF — utile pour valider le module
+indépendamment du reste du projet.
 
 ---
 
