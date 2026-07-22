@@ -1,5 +1,4 @@
 build/
-assets/hrtf/*.sofa
 
 # Rapports generes par les benchmarks (voir benchmarks/), pas du code source
 benchmark_results.txt
