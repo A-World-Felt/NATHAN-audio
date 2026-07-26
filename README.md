@@ -38,6 +38,7 @@ C:\vcpkg\vcpkg integrate install
 ```powershell
 C:\vcpkg\vcpkg install openal-soft:x64-windows
 C:\vcpkg\vcpkg install libmysofa:x64-windows
+C:\vcpkg\vcpkg install nlohmann-json:x64-windows
 ```
 
 ---

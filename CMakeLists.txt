@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenAL CONFIG REQUIRED)
 find_package(mysofa CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Code produit (NATHAN) : voir src/hrtf/ et tools/.
 add_subdirectory(src)
