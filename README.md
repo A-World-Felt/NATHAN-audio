@@ -162,7 +162,9 @@ nathan-audio/
 ├── src/
 │   └── hrtf/               ← module de production : chargement des profils HRTF (DEV-167)
 ├── tools/
-│   └── hrtf_check.cpp      ← programme de vérification du module src/hrtf
+│   ├── hrtf_check.cpp           ← programme de vérification du module src/hrtf
+│   ├── hrtf_profile_select.cpp  ← vérification sélection + persistance (DEV-238)
+│   └── hrtf_profile_listen.cpp  ← interface d'écoute et de sélection à l'oreille (DEV-239)
 ├── benchmarks/             ← prototypes de la phase d'exploration (voir benchmarks/README.md)
 │   ├── src/                ← modules de support (WAV, device HRTF, profils, clavier)
 │   ├── profile_selector.cpp
@@ -196,6 +198,35 @@ sélection utilisateur et l'interface arrivent dans des tâches ultérieures
 `hrtf_check` liste les profils trouvés dans `assets/hrtf/`, installe le
 premier et affiche le statut HRTF — utile pour valider le module
 indépendamment du reste du projet.
+
+### Sélection et écoute du profil HRTF (DEV-238 / DEV-239)
+
+Au-dessus du chargement de base, `src/hrtf/` fournit aussi la persistance du
+choix utilisateur (`profile_settings`, `profile_selector`, JSON dans
+`<dossier config NATHAN>/settings.json`) et une interface d'écoute
+interactive pour choisir un profil à l'oreille — la console NATHAN
+s'adresse à des personnes malvoyantes, la sélection ne passe pas par un
+écran.
+
+```powershell
+.\build\Debug\hrtf_profile_listen.exe
+```
+
+`hrtf_profile_listen` fait tourner un son de test autour de la tête de
+l'utilisateur et bascule le profil HRTF **à chaud** (audible immédiatement,
+sans redémarrer le programme) :
+
+- `←` / `→` : profil précédent / suivant ;
+- `Entrée` : confirme le profil courant et l'enregistre dans
+  `settings.json` (rechargé automatiquement au prochain lancement) ;
+- `Échap` ou `Q` : abandonne sans modifier `settings.json`.
+
+`hrtf_profile_select` (DEV-238) reste disponible pour vérifier uniquement le
+cycle sélection → persistance → relecture, sans son ni navigation :
+
+```powershell
+.\build\Debug\hrtf_profile_select.exe [id_profil]
+```
 
 ---
 
