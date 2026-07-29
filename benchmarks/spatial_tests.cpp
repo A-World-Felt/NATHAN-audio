@@ -15,24 +15,11 @@
 
 #include "src/al_hrtf_device.h"
 #include "src/hrtf_profile.h"
-#include "src/wav_loader.h"
+#include "src/mp3_loader.h"
 
 namespace {
 
 constexpr float kRadiusMeters = 1.5f;
-
-ALuint makeBufferFromWav(const WavAudio& wav) {
-    ALuint buffer = 0;
-    alGenBuffers(1, &buffer);
-    std::vector<int16_t> pcm(wav.samples.size());
-    for (size_t i = 0; i < wav.samples.size(); ++i) {
-        pcm[i] = static_cast<int16_t>(std::lround(wav.samples[i] * 32767.0f));
-    }
-    alBufferData(buffer, AL_FORMAT_MONO16, pcm.data(),
-                 static_cast<ALsizei>(pcm.size() * sizeof(int16_t)),
-                 static_cast<ALsizei>(wav.sampleRate));
-    return buffer;
-}
 
 ALuint makeLoopingSource(ALuint buffer) {
     ALuint source = 0;
@@ -91,14 +78,14 @@ int main() {
     std::printf("=== NATHAN - Tests de spatialisation (profil %s, HRTF: %s) ===\n", HRTF_PROFILE,
                 alDevice.hrtfStatusString().c_str());
 
-    WavAudio wav;
-    try {
-        wav = load_wav_mono16("assets/test-audio.wav");
-    } catch (const std::exception& e) {
-        std::fprintf(stderr, "Erreur de chargement WAV : %s\n", e.what());
-        return 1;
-    }
-    ALuint buffer = makeBufferFromWav(wav);
+    Mp3Audio mp3;
+        try {
+            mp3 = load_mp3("assets/test-audio.mp3");
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "Erreur de chargement MP3 : %s\n", e.what());
+            return 1;
+        }
+    ALuint buffer = makeBufferFromMp3(mp3);
     alDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
 
     // --- Test 1 : gauche puis droite ---
