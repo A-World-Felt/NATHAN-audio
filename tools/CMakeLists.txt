@@ -1,2 +1,8 @@
 add_executable(hrtf_check hrtf_check.cpp)
 target_link_libraries(hrtf_check PRIVATE nathan_hrtf)
+
+add_executable(hrtf_profile_select hrtf_profile_select.cpp)
+target_link_libraries(hrtf_profile_select PRIVATE nathan_hrtf)
+
+add_executable(hrtf_profile_listen hrtf_profile_listen.cpp)
+target_link_libraries(hrtf_profile_listen PRIVATE nathan_hrtf)
