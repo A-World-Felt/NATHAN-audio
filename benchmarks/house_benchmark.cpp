@@ -394,10 +394,10 @@ std::string buildReport(const FrameStats& stats, const AlHrtfDevice& alDevice, d
     out << "\n--- Resultats (temps de traitement audio par frame) ---\n";
     out << "Frames traitees           : " << stats.count << "\n";
     out << std::fixed << std::setprecision(2);
-    out << "Temps moyen                : " << stats.meanUs << " us\n";
-    out << "Temps median                : " << stats.medianUs << " us\n";
-    out << "Temps min                  : " << stats.minUs << " us\n";
-    out << "Temps max                  : " << stats.maxUs << " us\n";
+    out << "Latence moyenne             : " << stats.meanUs << " us\n";
+    out << "Latence mediane             : " << stats.medianUs << " us\n";
+    out << "Latence min                 : " << stats.minUs << " us\n";
+    out << "Latence max                 : " << stats.maxUs << " us\n";
     out << "Ecart-type                 : " << stats.stddevUs << " us\n";
     out << "Percentile 95e              : " << stats.p95Us << " us\n";
     out << "Percentile 99e              : " << stats.p99Us << " us\n";
