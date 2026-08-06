@@ -6,3 +6,6 @@ target_include_directories(web_demo_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 if(WIN32)
     target_link_libraries(web_demo_server PRIVATE ws2_32)
 endif()
+
+add_executable(spatial_math_test spatial_math_test.cpp spatial_math.cpp)
+target_include_directories(spatial_math_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
