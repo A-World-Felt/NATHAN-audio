@@ -1,13 +1,21 @@
 import { startPolling, type DemoState } from "./api";
 import { initScene } from "./scene";
+import { initMetrics } from "./metrics";
+import { initMp3Panel } from "./mp3panel";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const sceneContainer = document.createElement("div");
 sceneContainer.style.width = "600px";
 sceneContainer.style.height = "600px";
+const metricsContainer = document.createElement("div");
+const mp3Container = document.createElement("div");
 app.appendChild(sceneContainer);
+app.appendChild(metricsContainer);
+app.appendChild(mp3Container);
 
 const scene = initScene(sceneContainer);
+const metrics = initMetrics(metricsContainer);
+const mp3panel = initMp3Panel(mp3Container);
 
 // Fixture temporaire (Task 9, verification visuelle sans backend) — sera
 // remplacee par le vrai polling ci-dessous des que web_demo_server tourne.
@@ -28,8 +36,14 @@ const fixture: DemoState = {
   mp3: { path: "assets/test-audio.mp3", fileSizeBytes: 179837, sampleRateHz: 44100, channels: 1, durationSec: 4.08, totalSamples: 179928 },
 };
 scene.render(fixture);
+metrics.render(fixture);
+mp3panel.render(fixture);
 
 startPolling(
-  (state) => scene.render(state),
+  (state) => {
+    scene.render(state);
+    metrics.render(state);
+    mp3panel.render(state);
+  },
   () => {},
 );
