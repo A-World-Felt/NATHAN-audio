@@ -64,10 +64,14 @@ export function initScene(container: HTMLElement): { render(state: DemoState): v
   svg.setAttribute("aria-label", "Scène spatiale : joueur, 4 sources sonores et vecteurs de position relative");
 
   // --- Anneaux de distance + axes cardinaux (rendu statique, une fois) ---
-  // Etiquettes de distance placees a 35 deg de l'axe avant (hors des 4 axes
-  // cardinaux ou vivent les sprites/etiquettes d'axe) pour ne jamais les
-  // recouvrir, quel que soit le nombre d'anneaux.
-  const RING_LABEL_ANGLE_RAD = (35 * Math.PI) / 180;
+  // Etiquettes de distance placees a 35 deg de l'axe arriere (hors des 4
+  // axes cardinaux ou vivent les sprites/etiquettes d'axe) pour ne jamais
+  // les recouvrir, quel que soit le nombre d'anneaux. Cote bas-droit
+  // (quadrant ARRIERE/DROITE) et non haut-droit : la legende fixe (voir
+  // .scene-legend) occupe le coin haut-droit de la scene, et les etiquettes
+  // des anneaux exterieurs (10 m, 12 m) s'y retrouvaient cachees dessous —
+  // trouve en revue independante round 2.
+  const RING_LABEL_ANGLE_RAD = (145 * Math.PI) / 180;
   const ringsGroup = svgEl("g");
   ringsGroup.setAttribute("class", "scene-rings");
   for (let r = RING_STEP_M; r <= VIEW_MAX; r += RING_STEP_M) {
@@ -237,6 +241,19 @@ export function initScene(container: HTMLElement): { render(state: DemoState): v
       // deja relachee/invalide — rien a faire.
     }
   });
+  // pointercancel (ex. le navigateur interrompt le geste — changement
+  // d'onglet, autre pointeur, etc.) n'est PAS garanti d'etre suivi d'un
+  // pointerup : sans ce handler, "dragging" restait bloque a true et tout
+  // mousemove ulterieur ailleurs sur la page continuait a deplacer le
+  // joueur — releve en revue independante round 2.
+  playerGroup.addEventListener("pointercancel", (ev) => {
+    dragging = false;
+    try {
+      playerGroup.releasePointerCapture(ev.pointerId);
+    } catch {
+      // deja relachee/invalide — rien a faire.
+    }
+  });
   playerGroup.addEventListener("pointermove", (ev) => {
     if (!dragging) return;
     ev.preventDefault();
@@ -289,8 +306,33 @@ export function initScene(container: HTMLElement): { render(state: DemoState): v
       const dy = playerScreen.sy - sy;
       const segLen = Math.max(Math.hypot(dx, dy), 1e-3);
       const clearance = Math.min(1.3, segLen * 0.6);
-      const labelX = sx + (dx / segLen) * clearance;
+      const labelX0 = sx + (dx / segLen) * clearance;
       const labelY = sy + (dy / segLen) * clearance;
+
+      // La propre etiquette de la source (titre + sous-titre format, voir
+      // sy-0.85 et sy-0.42 plus bas) occupe un bloc fixe juste au-dessus
+      // d'elle. Deux tentatives anterieures (bande verticale fixe, puis
+      // decalage proportionnel a "a quel point le vecteur pointe vers le
+      // haut") ont chacune laisse passer des cas reels en revue
+      // independante round 2 (0.2 m ET 7.2 m de distance, direction pas
+      // forcement plein nord). Test AABB direct entre le rectangle du
+      // libelle du vecteur et celui de la source — le seul qui couvre
+      // vraiment tous les angles/distances, puisqu'il teste le
+      // chevauchement reel plutot qu'une approximation de la direction.
+      const VECTOR_LABEL_HALF_WIDTH = 1.7; // majore la chaine la plus longue ("12.8 m · -176°")
+      const VECTOR_LABEL_HALF_HEIGHT = 0.25;
+      const SOURCE_LABEL_HALF_WIDTH = 1.0;
+      const SOURCE_LABEL_TOP = sy - 1.2;
+      const SOURCE_LABEL_BOTTOM = sy - 0.15;
+      const overlapsSourceLabel =
+        labelX0 + VECTOR_LABEL_HALF_WIDTH > sx - SOURCE_LABEL_HALF_WIDTH &&
+        labelX0 - VECTOR_LABEL_HALF_WIDTH < sx + SOURCE_LABEL_HALF_WIDTH &&
+        labelY + VECTOR_LABEL_HALF_HEIGHT > SOURCE_LABEL_TOP &&
+        labelY - VECTOR_LABEL_HALF_HEIGHT < SOURCE_LABEL_BOTTOM;
+      const sideDir = sx <= 0 ? -1 : 1;
+      const labelX = overlapsSourceLabel
+        ? sx + sideDir * (SOURCE_LABEL_HALF_WIDTH + VECTOR_LABEL_HALF_WIDTH + 0.15)
+        : labelX0;
       vectorsGroup.appendChild(
         labelWithBackground(`${source.distanceM.toFixed(1)} m · ${source.azimuthDeg.toFixed(0)}°`, labelX, labelY, "scene-vector-label"),
       );

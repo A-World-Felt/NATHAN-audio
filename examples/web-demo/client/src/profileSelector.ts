@@ -55,6 +55,12 @@ export function initProfileSelector(container: HTMLElement): { render(activeId: 
     if (newActiveId !== activeId) {
       activeId = newActiveId;
       select.value = activeId;
+      // Sans cette ligne, un changement de profil venant d'ailleurs que ce
+      // <select> (ex. un autre onglet/session pointant le meme serveur)
+      // met a jour le select et le bandeau d'en-tete (lies au poll) mais
+      // pas cette indication — les deux finissent par afficher des profils
+      // differents simultanement. Trouve en revue independante round 2.
+      hint.textContent = `Profil actif : ${activeId}`;
     }
   }
 
