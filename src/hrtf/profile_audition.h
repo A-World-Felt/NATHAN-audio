@@ -17,7 +17,8 @@
 namespace nathan::hrtf {
 
 struct AuditionConfig {
-    std::filesystem::path testWavPath;    // son de test, mono 16/24 bits (voir wav_mono16.h)
+    std::filesystem::path testAudioPath;  // son de test .wav (16/24 bits, wav_mono16.h) ou .mp3
+                                           // (mono, mp3_mono16.h), selon l'extension
     std::filesystem::path openalHrtfDir;  // dossier hrtf-paths d'OpenAL Soft (openal_paths.h)
     std::filesystem::path settingsPath;   // fichier de persistance (profile_settings.h)
     double rotationPeriodSec = 6.0;       // duree d'un tour complet du cercle

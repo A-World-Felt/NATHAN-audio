@@ -10,6 +10,7 @@ add_library(nathan_hrtf STATIC
     hrtf/profile_settings.cpp
     hrtf/profile_selector.cpp
     hrtf/wav_mono16.cpp
+    hrtf/mp3_mono16.cpp
     hrtf/audition_input.cpp
     hrtf/active_profile.cpp
     hrtf/profile_audition.cpp

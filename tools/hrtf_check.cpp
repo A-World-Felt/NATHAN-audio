@@ -14,10 +14,10 @@
 #include <filesystem>
 #include <vector>
 
+#include "hrtf/active_profile.h"
 #include "hrtf/hrtf_context.h"
 #include "hrtf/openal_paths.h"
 #include "hrtf/profile_catalog.h"
-#include "hrtf/profile_installer.h"
 
 int main() {
     using namespace nathan::hrtf;
@@ -46,26 +46,21 @@ int main() {
     }
 
     const HrtfProfile& chosen = profiles.front();
-    std::printf("\nInstallation du profil : %s\n", chosen.id.c_str());
+    std::printf("\nProfil choisi : %s\n", chosen.id.c_str());
+
+    HrtfContext ctx;
     try {
         const std::filesystem::path destDir = openalHrtfDirectory();
-        installProfile(chosen, destDir);
-        std::printf("Installe dans : %s\n", destDir.string().c_str());
+        applyProfile(chosen, destDir, ctx);
+        std::printf("OK : HRTF actif avec le profil %s.\n", chosen.id.c_str());
     } catch (const std::exception& e) {
-        std::fprintf(stderr, "Erreur d'installation : %s\n", e.what());
+        std::fprintf(stderr, "Erreur d'application du profil : %s\n", e.what());
         return 1;
     }
 
-    std::printf("\nOuverture du contexte OpenAL avec HRTF force...\n");
-    HrtfContext ctx;
-    try {
-        ctx.open();
-        std::printf("Statut HRTF : %s\n", toString(ctx.status()).c_str());
-        std::printf("OK : HRTF actif avec le profil %s.\n", chosen.id.c_str());
-    } catch (const std::exception& e) {
-        std::fprintf(stderr, "Erreur d'activation HRTF : %s\n", e.what());
-        return 1;
-    }
+    std::printf("\n=== Resume ===\n");
+    std::printf("Profils trouves : %zu | Profil installe : %s | Statut HRTF : %s\n",
+                profiles.size(), chosen.id.c_str(), toString(ctx.status()).c_str());
 
     return 0;
 }

@@ -9,12 +9,22 @@
 
 #include "active_profile.h"
 #include "hrtf_context.h"
+#include "mp3_mono16.h"
 #include "profile_settings.h"
 #include "wav_mono16.h"
 
 namespace nathan::hrtf {
 
 namespace {
+
+// Choisit le chargeur PCM selon l'extension du fichier audio (".mp3" ->
+// dr_mp3, sinon WAV, comportement inchangee pour les .wav existants).
+PcmMono16 loadTestAudio(const std::filesystem::path& path) {
+    if (path.extension() == ".mp3") {
+        return loadMp3Mono16(path);
+    }
+    return loadWavMono16(path);
+}
 
 // azimuthDeg : 0 = devant (-Z), +90 = droite (+X), -90 = gauche, 180 = derriere.
 void setAzimuth(ALuint source, float azimuthDeg, float radiusMeters) {
@@ -51,7 +61,15 @@ double elapsedSeconds(const std::chrono::steady_clock::time_point& start) {
 
 AuditionResult runProfileAudition(ProfileSelector& selector, AuditionInput& input,
                                    const AuditionConfig& config, std::FILE* out) {
-    const PcmMono16 wav = loadWavMono16(config.testWavPath);
+    const PcmMono16 wav = loadTestAudio(config.testAudioPath);
+    if (out) {
+        const bool isMp3 = config.testAudioPath.extension() == ".mp3";
+        const double durationSec =
+            wav.sampleRate > 0 ? static_cast<double>(wav.samples.size()) / wav.sampleRate : 0.0;
+        std::fprintf(out, "Fichier audio charge : %s (%s, mono, %d Hz, %zu echantillons, ~%.1f s)\n",
+                     config.testAudioPath.filename().string().c_str(), isMp3 ? "MP3" : "WAV",
+                     wav.sampleRate, wav.samples.size(), durationSec);
+    }
     const std::string startingProfileId = selector.current().id;
 
     HrtfContext context;
@@ -60,7 +78,8 @@ AuditionResult runProfileAudition(ProfileSelector& selector, AuditionInput& inpu
     SpatialVoice voice;
     voice.create(wav);
     if (out) {
-        std::fprintf(out, "Profil actif : %s\n", selector.current().id.c_str());
+        std::fprintf(out, "[Son tournant] Le son de test tourne autour de la tete. Profil actif : %s\n",
+                     selector.current().id.c_str());
     }
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -85,11 +104,12 @@ AuditionResult runProfileAudition(ProfileSelector& selector, AuditionInput& inpu
                 applyProfile(selector.current(), config.openalHrtfDir, context);
                 voice.create(wav);
                 if (out) {
-                    std::fprintf(out, "Profil actif : %s\n", selector.current().id.c_str());
+                    std::fprintf(out, "[Navigation] Profil actif : %s\n",
+                                 selector.current().id.c_str());
                 }
             } catch (const std::exception& e) {
                 if (out) {
-                    std::fprintf(out, "Echec de bascule vers %s (%s), repli sur %s\n",
+                    std::fprintf(out, "[Navigation] Echec de bascule vers %s (%s), repli sur %s\n",
                                  selector.current().id.c_str(), e.what(), previousId.c_str());
                 }
                 if (!selector.selectById(previousId)) {
@@ -103,7 +123,15 @@ AuditionResult runProfileAudition(ProfileSelector& selector, AuditionInput& inpu
                 voice.create(wav);
             }
         } else if (command == AuditionCommand::Confirm) {
+            if (out) {
+                std::fprintf(out, "[Confirmation] Confirmation du profil %s...\n",
+                             selector.current().id.c_str());
+            }
             saveSettings(AppSettings{selector.current().id}, config.settingsPath);
+            if (out) {
+                std::fprintf(out, "[Ecriture du choix] Profil sauvegarde dans settings.json : %s\n",
+                             selector.current().id.c_str());
+            }
             AuditionResult result;
             result.outcome = AuditionOutcome::Confirmed;
             result.activeProfileId = selector.current().id;

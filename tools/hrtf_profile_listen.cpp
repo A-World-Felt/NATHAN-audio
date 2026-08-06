@@ -3,9 +3,14 @@
 // entre profils, la confirmation persiste le choix dans settings.json
 // (DEV-238). Dernier maillon de la chaine DEV-167 -> DEV-238 -> DEV-239.
 //
-// A executer depuis la racine du depot (lit assets/hrtf/ et
-// assets/test-audio.wav en chemin relatif) :
+// A executer depuis la racine du depot (lit assets/hrtf/ et le fichier audio
+// de test ci-dessous en chemin relatif) :
 //   .\build\Debug\hrtf_profile_listen.exe
+//
+// AuditionConfig::testAudioPath bascule automatiquement entre wav_mono16.h
+// et mp3_mono16.h selon l'extension (voir profile_audition.cpp). Fichier de
+// demo MP3 par defaut ci-dessous ; remplacer par un ".wav" pour revenir a
+// l'ancien chargeur.
 //
 // Commandes : fleche gauche/droite pour naviguer, Entree pour confirmer,
 // Echap ou Q pour abandonner.
@@ -43,9 +48,11 @@ int main() {
                       assetsHrtfDir.string().c_str());
         return 1;
     }
+    std::printf("[Decouverte] %zu profil(s) trouve(s) dans %s\n", profiles.size(),
+                assetsHrtfDir.string().c_str());
 
     AuditionConfig config;
-    config.testWavPath = "assets/test-audio.wav";
+    config.testAudioPath = "assets/test-audio.mp3";
 
     try {
         config.openalHrtfDir = openalHrtfDirectory();
@@ -63,7 +70,11 @@ int main() {
         return 1;
     }
     if (resolution.usedFallback) {
-        std::printf("Repli sur profil par defaut : %s\n", resolution.fallbackReason.c_str());
+        std::printf("[Profil par defaut] Repli sur profil par defaut : %s\n",
+                    resolution.fallbackReason.c_str());
+    } else {
+        std::printf("[Relecture] Profil relu depuis settings.json : %s\n",
+                    resolution.profile.id.c_str());
     }
 
     ProfileSelector selector(profiles, resolution.profile.id);
