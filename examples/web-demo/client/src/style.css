@@ -1,15 +1,33 @@
 /*
- * Token system — palette sombre technique propre a cette demo (pas celle de
- * la demo agent-core, cf. docs/superpowers/specs/2026-08-06-web-audio-demo-design.md).
+ * Token system — instrument-panel palette for a spatial-audio tool. Two
+ * categorical identities only: --player (l'auditeur, ce qu'on controle) et
+ * --source (les sources sonores fixes), volontairement des teintes opposees
+ * (ambre chaud / sarcelle froide) pour rester distinguables meme en vision
+ * daltonienne — verifie avec dataviz/scripts/validate_palette.js (OKLCH L
+ * dans la bande 0.48-0.67 pour le mode sombre, ecart CVD > 8).
  */
 :root {
-  --ink: #0f1216;
-  --ink-raised: #171b21;
-  --paper: #e7e9ee;
-  --accent: #4fd1c5;
-  --accent-strong: #7ee8db;
-  --mute: #8891a3;
-  --alert: #ff6b6b;
+  --ink: #0b0f14;
+  --ink-raised: #131920;
+  --ink-inset: #0e141b;
+  --paper: #e8ecf1;
+  --paper-dim: #b7c0cc;
+  --mute: #7c8798;
+
+  --player: #c96f18;
+  --player-bright: #f0993f;
+  --source: #1f9e8f;
+  --source-bright: #3ecfba;
+
+  --good: #3ecf8e;
+  --alert: #ff5d5d;
+
+  --grid: #1c2731;
+  --grid-strong: #2a3a48;
+
+  --radius: 0.55rem;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -20,76 +38,249 @@ body {
   margin: 0;
   background: var(--ink);
   color: var(--paper);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 15px/1.5 var(--sans);
 }
 
-.scene-svg { width: 100%; height: 100%; background: var(--ink-raised); }
-.grid-line { stroke: color-mix(in srgb, var(--paper) 8%, transparent); stroke-width: 0.02; }
-.grid-line--major { stroke: color-mix(in srgb, var(--paper) 16%, transparent); }
-.scene-player { fill: var(--accent-strong); cursor: grab; }
-.scene-sprite { fill: var(--accent); }
-.scene-vector { stroke: var(--mute); stroke-width: 0.05; }
-.scene-vector-label, .scene-sprite-label { fill: var(--paper); font-size: 0.4px; font-family: ui-monospace, monospace; text-anchor: middle; }
+:focus-visible {
+  outline: 2px solid var(--source-bright);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+code {
+  font-family: var(--mono);
+}
+
+/* ---------- Structure ------------------------------------------------- */
 
 .app { display: flex; flex-direction: column; height: 100dvh; }
 
 .app-header {
-  display: flex; align-items: baseline; gap: 0.75rem;
-  padding: 1.1rem 1.25rem 0.9rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--paper) 12%, transparent);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; flex-wrap: wrap;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--grid-strong);
+  background: linear-gradient(180deg, var(--ink-raised), var(--ink));
 }
-.brand { display: flex; align-items: center; gap: 0.5rem; }
-.brand-mark { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0.5rem var(--accent); }
-.app-header h1 { margin: 0; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.06em; font-family: ui-monospace, monospace; }
+
+.brand { display: flex; align-items: center; gap: 0.6rem; }
+
+.brand-mark {
+  width: 1.1rem; height: 1.1rem; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, var(--source-bright) 0 2px, transparent 2px),
+    radial-gradient(circle at 50% 50%, transparent 0 5px, var(--grid-strong) 5px 6px, transparent 6px);
+}
+
+.app-header h1 {
+  margin: 0; font-size: 0.92rem; font-weight: 700; letter-spacing: 0.02em;
+}
 .brand-sub { color: var(--mute); font-weight: 500; }
 
-.unreachable {
-  margin: 1rem 1.25rem 0; padding: 0.9rem 1rem;
-  border: 1px solid var(--alert); border-radius: 0.6rem;
-  background: color-mix(in srgb, var(--alert) 12%, var(--ink-raised));
-  font-size: 0.9rem;
+.status-strip {
+  display: flex; align-items: center; gap: 1.4rem;
+  font-family: var(--mono); font-size: 0.76rem; color: var(--paper-dim);
 }
-.unreachable code { background: var(--ink-raised); padding: 0.1rem 0.35rem; border-radius: 0.3rem; font-family: ui-monospace, monospace; }
+.status-strip dt { display: inline; color: var(--mute); margin-right: 0.35rem; }
+.status-strip dd { display: inline; margin: 0; }
+.status-strip .status-item { display: flex; align-items: baseline; gap: 0; }
+
+.status-dot {
+  display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%;
+  background: var(--mute); margin-right: 0.4rem;
+}
+.status-dot--good { background: var(--good); box-shadow: 0 0 0.4rem var(--good); }
+.status-dot--bad { background: var(--alert); box-shadow: 0 0 0.4rem var(--alert); }
+
+.unreachable {
+  margin: 0.85rem 1.25rem 0; padding: 0.9rem 1rem;
+  border: 1px solid var(--alert); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--alert) 12%, var(--ink-raised));
+  font-size: 0.88rem;
+}
+.unreachable code { background: var(--ink); padding: 0.1rem 0.35rem; border-radius: 0.3rem; }
 
 .layout { flex: 1; min-height: 0; display: flex; }
 
 .left-col {
-  width: 22rem; flex: none; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 1.25rem; padding: 1rem;
-  border-right: 1px solid color-mix(in srgb, var(--paper) 12%, transparent);
-  background: var(--ink-raised);
+  width: 23rem; flex: none; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 0.85rem; padding: 0.85rem;
+  border-right: 1px solid var(--grid-strong);
+  background: var(--ink);
 }
-.left-col h2 { margin: 0 0 0.5rem; font-size: 0.78rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mute); }
 
-.scene-col { flex: 1; min-width: 0; padding: 1rem; }
+.panel {
+  background: var(--ink-raised);
+  border: 1px solid var(--grid-strong);
+  border-radius: var(--radius);
+  padding: 0.85rem 0.9rem;
+}
+.panel h2 {
+  margin: 0 0 0.65rem;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--mute);
+}
 
-.metric-list { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.75rem; margin: 0; font-size: 0.8rem; }
-.metric-list dt { color: var(--mute); }
-.metric-list dd { margin: 0; font-family: ui-monospace, monospace; text-align: right; }
+.scene-col { flex: 1; min-width: 0; min-height: 0; position: relative; }
 
-.metric-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; font-family: ui-monospace, monospace; }
-.metric-table th, .metric-table td { text-align: left; padding: 0.2rem 0.3rem; }
-.metric-table th { color: var(--mute); font-weight: 500; }
+@media (max-width: 62rem) {
+  .layout { flex-direction: column; }
+  .left-col { width: auto; max-height: 48vh; border-right: none; border-bottom: 1px solid var(--grid-strong); }
+}
 
-.profile-list { list-style: none; margin: 0; padding: 0; max-height: 12rem; overflow-y: auto; font-size: 0.75rem; font-family: ui-monospace, monospace; }
-.profile-list li { padding: 0.3rem 0.5rem; border-radius: 0.3rem; cursor: pointer; }
-.profile-list li:hover { background: color-mix(in srgb, var(--mute) 12%, transparent); }
-.profile-list li.profile-active { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-strong); font-weight: 600; }
-.profile-hint { font-size: 0.72rem; color: var(--mute); min-height: 1.2em; }
+/* ---------- Profile selector -------------------------------------------- */
 
-.mp3-note { font-size: 0.7rem; color: var(--mute); }
+.profile-search {
+  width: 100%; margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--ink-inset); color: var(--paper);
+  border: 1px solid var(--grid-strong); border-radius: 0.4rem;
+  font: 0.78rem/1.4 var(--mono);
+}
+.profile-search::placeholder { color: var(--mute); }
+
+.profile-hint { font-size: 0.72rem; color: var(--mute); min-height: 1.2em; margin: 0 0 0.4rem; }
+
+.profile-list {
+  list-style: none; margin: 0; padding: 0; max-height: 11rem; overflow-y: auto;
+  font-size: 0.76rem; font-family: var(--mono);
+  border-top: 1px solid var(--grid);
+}
+.profile-list li {
+  padding: 0.32rem 0.5rem; cursor: pointer; border-radius: 0.35rem;
+  display: flex; align-items: center; gap: 0.45rem;
+}
+.profile-list li::before {
+  content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%;
+  background: var(--grid-strong); flex: none;
+}
+.profile-list li:hover { background: color-mix(in srgb, var(--paper) 6%, transparent); }
+.profile-list li.profile-active { color: var(--source-bright); font-weight: 600; }
+.profile-list li.profile-active::before { background: var(--source-bright); box-shadow: 0 0 0.35rem var(--source-bright); }
+.profile-list li[hidden] { display: none; }
+
+/* ---------- Stat tiles --------------------------------------------------- */
+
+.stat-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.stat-tile {
+  background: var(--ink-inset); border-radius: 0.4rem; padding: 0.55rem 0.65rem;
+}
+.stat-tile .stat-value {
+  display: block; font-family: var(--mono); font-size: 1.05rem; font-weight: 600;
+  color: var(--paper); line-height: 1.2;
+}
+.stat-tile .stat-label {
+  display: block; font-size: 0.66rem; color: var(--mute); letter-spacing: 0.03em;
+  margin-top: 0.15rem;
+}
+.stat-tile--ok .stat-value { color: var(--good); }
+
+/* ---------- Source table -------------------------------------------------- */
+
+.metric-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; font-family: var(--mono); }
+.metric-table th {
+  text-align: left; font-weight: 500; color: var(--mute);
+  font-size: 0.64rem; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 0 0.3rem 0.35rem;
+}
+.metric-table td { padding: 0.3rem; vertical-align: middle; }
+.metric-table tr + tr td { border-top: 1px solid var(--grid); }
+.metric-table .src-name { display: flex; align-items: center; gap: 0.4rem; }
+.metric-table .src-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--source); flex: none; }
+.metric-table .gain-cell { min-width: 5.5rem; }
+.gain-bar {
+  position: relative; height: 0.35rem; border-radius: 999px;
+  background: var(--grid); overflow: hidden;
+}
+.gain-bar > span {
+  position: absolute; inset: 0 auto 0 0; border-radius: 999px;
+  background: var(--source);
+}
+.gain-value { display: block; margin-top: 0.15rem; color: var(--mute); font-size: 0.68rem; }
+
+/* ---------- MP3 badge ------------------------------------------------------ */
+
+.mp3-badge {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem;
+  font-family: var(--mono); font-size: 0.74rem; color: var(--paper-dim);
+}
+.mp3-badge b { color: var(--paper); font-weight: 600; }
+.mp3-note {
+  font-size: 0.68rem; color: var(--mute); margin: 0.5rem 0 0; line-height: 1.4;
+}
+.mp3-note code { color: var(--paper-dim); }
+
+/* ---------- Scene (radar) -------------------------------------------------- */
+
+.scene-svg { width: 100%; height: 100%; display: block; background: var(--ink); }
+
+.scene-ring { fill: none; stroke: var(--grid); stroke-width: 0.04; }
+.scene-ring-label { fill: var(--mute); font-size: 0.42px; font-family: var(--mono); }
+.scene-axis { stroke: var(--grid-strong); stroke-width: 0.045; }
+.scene-axis-label { fill: var(--mute); font-size: 0.5px; font-family: var(--mono); letter-spacing: 0.02em; }
+
+.scene-vector { stroke: var(--source); stroke-width: 0.045; }
+.scene-label-bg { fill: var(--ink); fill-opacity: 0.86; }
+.scene-vector-label { fill: var(--paper-dim); font-size: 0.42px; font-family: var(--mono); text-anchor: middle; }
+
+.scene-sprite-ring { fill: none; stroke: var(--source); stroke-width: 0.09; }
+.scene-sprite-core { fill: var(--source); }
+.scene-sprite-label { fill: var(--paper); font-size: 0.44px; font-family: var(--mono); text-anchor: middle; font-weight: 600; }
+.scene-sprite-sub { fill: var(--mute); font-size: 0.36px; font-family: var(--mono); text-anchor: middle; }
+
+.scene-player-group {
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.scene-player-group:active { cursor: grabbing; }
+/*
+ * CSS outline (box-model, CSS-pixel units) rend incorrectement sur un <g>
+ * SVG transforme (translate) a l'interieur d'un viewBox mis a l'echelle
+ * ~50x (24 unites -> ~1200px) : Chromium ne mappe pas "2px" vers l'espace
+ * ecran pour ce cas, produisant un enorme carre plein — trouve en verification
+ * manuelle apres l'ajout de playerGroup.focus() (voir scene.ts, pointerdown).
+ * Indicateur de focus natif SVG a la place : anneau existant, juste plus
+ * epais et surligne, en unites utilisateur SVG qui suivent le viewBox.
+ */
+.scene-player-group:focus-visible { outline: none; }
+.scene-player-group:focus-visible .scene-player-ring {
+  stroke: var(--source-bright);
+  stroke-width: 0.16;
+  opacity: 1;
+}
+.scene-player-crosshair { stroke: var(--player-bright); stroke-width: 0.09; stroke-linecap: round; }
+.scene-player-ring { fill: none; stroke: var(--player); stroke-width: 0.06; opacity: 0.6; }
+.scene-player-core { fill: var(--player-bright); }
+
+.scene-legend {
+  position: absolute; top: 0.85rem; right: 0.85rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+  background: color-mix(in srgb, var(--ink-raised) 92%, transparent);
+  border: 1px solid var(--grid-strong); border-radius: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  font-family: var(--mono); font-size: 0.7rem; color: var(--paper-dim);
+  pointer-events: none;
+}
+.scene-legend-row { display: flex; align-items: center; gap: 0.45rem; }
+.scene-legend-glyph { width: 0.85rem; height: 0.85rem; flex: none; }
+
+/* ---------- Micro-interactions --------------------------------------------- */
 
 @keyframes metric-flash-anim {
-  0% { color: var(--accent-strong); }
-  100% { color: var(--paper); }
+  0% { color: var(--source-bright); }
+  100% { color: inherit; }
 }
 .metric-flash { animation: metric-flash-anim 0.6s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
   .metric-flash { animation: none; }
-}
-
-@media (max-width: 60rem) {
-  .layout { flex-direction: column; }
-  .left-col { width: auto; max-height: 45vh; border-right: none; border-bottom: 1px solid color-mix(in srgb, var(--paper) 12%, transparent); }
 }

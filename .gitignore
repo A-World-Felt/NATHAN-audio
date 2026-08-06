@@ -8,3 +8,7 @@ house_benchmark_results.txt
 __pycache__/
 *.pdb
 .DS_Store
+
+# Captures/snapshots generes par le MCP Playwright pendant les sessions de
+# verification manuelle (voir examples/web-demo/) — pas du code source.
+.playwright-mcp/
