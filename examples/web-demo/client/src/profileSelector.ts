@@ -5,29 +5,24 @@ export function initProfileSelector(container: HTMLElement): { render(activeId: 
     <label class="sr-only" for="profileSearch">Filtrer les profils</label>
     <input class="profile-search" id="profileSearch" type="search"
            placeholder="Filtrer (ex. 003, subject_1…)" autocomplete="off" />
+    <label class="sr-only" for="profileSelect">Profil HRTF actif</label>
+    <select class="profile-select" id="profileSelect" data-field="select" aria-label="Profils HRTF disponibles"></select>
     <p class="profile-hint" data-field="hint"></p>
-    <ul class="profile-list" data-field="list" role="listbox" aria-label="Profils HRTF disponibles"></ul>
   `;
 
-  const list = container.querySelector<HTMLUListElement>('[data-field="list"]')!;
+  const select = container.querySelector<HTMLSelectElement>('[data-field="select"]')!;
   const hint = container.querySelector<HTMLElement>('[data-field="hint"]')!;
   const search = container.querySelector<HTMLInputElement>("#profileSearch")!;
   let activeId = "";
 
-  function paintActive() {
-    for (const li of Array.from(list.children)) {
-      const el = li as HTMLLIElement;
-      el.classList.toggle("profile-active", el.dataset.id === activeId);
-      el.setAttribute("aria-selected", String(el.dataset.id === activeId));
-    }
-  }
-
   function applyFilter() {
     const q = search.value.trim().toLowerCase();
-    for (const li of Array.from(list.children)) {
-      const el = li as HTMLLIElement;
-      el.hidden = q !== "" && !(el.dataset.id ?? "").toLowerCase().includes(q);
+    for (const opt of Array.from(select.options)) {
+      opt.hidden = q !== "" && !opt.value.toLowerCase().includes(q);
     }
+    // Si l'option selectionnee vient d'etre masquee par le filtre, le
+    // <select> natif garde quand meme sa valeur affichee — inoffensif,
+    // mais on evite de la re-proposer comme choix tant que le filtre est actif.
   }
   search.addEventListener("input", applyFilter);
 
@@ -36,23 +31,20 @@ export function initProfileSelector(container: HTMLElement): { render(activeId: 
     const result = await postProfile(id);
     if (!result.ok) {
       hint.textContent = `Échec de bascule vers ${id} : ${result.error}`;
+      select.value = activeId; // revert l'affichage au profil reellement actif
       return;
     }
     activeId = id;
-    paintActive();
     hint.textContent = `Profil actif : ${id}`;
   }
+
+  select.addEventListener("change", () => void onSelect(select.value));
 
   fetchProfiles()
     .then(({ profiles, active }) => {
       activeId = active;
-      list.innerHTML = profiles
-        .map((id) => `<li role="option" data-id="${id}" tabindex="0">${id}</li>`)
-        .join("");
-      for (const li of Array.from(list.children)) {
-        li.addEventListener("click", () => void onSelect((li as HTMLLIElement).dataset.id!));
-      }
-      paintActive();
+      select.innerHTML = profiles.map((id) => `<option value="${id}">${id}</option>`).join("");
+      select.value = activeId;
       hint.textContent = `Profil actif : ${activeId}`;
     })
     .catch(() => {
@@ -62,7 +54,7 @@ export function initProfileSelector(container: HTMLElement): { render(activeId: 
   function render(newActiveId: string) {
     if (newActiveId !== activeId) {
       activeId = newActiveId;
-      paintActive();
+      select.value = activeId;
     }
   }
 

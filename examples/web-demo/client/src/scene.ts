@@ -153,8 +153,17 @@ export function initScene(container: HTMLElement): { render(state: DemoState): v
   playerGroup.appendChild(playerCore);
   svg.appendChild(playerGroup);
 
-  container.style.position = "relative";
-  container.appendChild(svg);
+  // Conteneur "stage" de taille plafonnee (voir .scene-stage, style.css) :
+  // le SVG a un viewBox fixe (24x24 m), donc sans plafond il grossit au
+  // pixel pres avec .scene-col — sur un grand ecran/fenetre maximisee, tout
+  // (police, anneaux, glyphes joueur/sources) devient demesurement gros
+  // alors que les proportions restent correctes (signale par l'utilisateur :
+  // "tout est trop zoome"). Le stage plafonne la taille visuelle et se
+  // centre dans .scene-col au lieu de remplir tout l'espace disponible.
+  const stage = document.createElement("div");
+  stage.className = "scene-stage";
+  stage.appendChild(svg);
+  container.appendChild(stage);
 
   // Legende fixe : resout explicitement "quel symbole est le joueur" sans
   // dependre uniquement de la reconnaissance de forme/couleur.
@@ -171,7 +180,7 @@ export function initScene(container: HTMLElement): { render(state: DemoState): v
       <span>Source sonore (fixe)</span>
     </div>
   `;
-  container.appendChild(legend);
+  stage.appendChild(legend);
 
   let latestPlayer = { x: 0, z: 0 };
   let dragging = false;

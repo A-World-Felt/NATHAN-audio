@@ -125,7 +125,26 @@ code {
   color: var(--mute);
 }
 
-.scene-col { flex: 1; min-width: 0; min-height: 0; position: relative; }
+.scene-col {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+
+/*
+ * Le SVG a un viewBox fixe (24x24 m) : sans plafond de taille, il grossit
+ * au pixel pres avec .scene-col — sur un grand ecran/fenetre maximisee,
+ * police/anneaux/glyphes deviennent demesures alors que les proportions
+ * restent correctes (signale : "tout est trop zoome"). ~800px de cote
+ * correspond au point ou la scene reste lisible sans dominer l'ecran
+ * (verifie par comparaison a 1280px et 1920px de large).
+ */
+.scene-stage {
+  position: relative;
+  width: 100%; height: 100%;
+  max-width: 800px; max-height: 800px;
+  aspect-ratio: 1 / 1;
+}
 
 @media (max-width: 62rem) {
   .layout { flex-direction: column; }
@@ -143,25 +162,27 @@ code {
 }
 .profile-search::placeholder { color: var(--mute); }
 
-.profile-hint { font-size: 0.72rem; color: var(--mute); min-height: 1.2em; margin: 0 0 0.4rem; }
+.profile-hint { font-size: 0.72rem; color: var(--mute); min-height: 1.2em; margin: 0.4rem 0 0; }
 
-.profile-list {
-  list-style: none; margin: 0; padding: 0; max-height: 11rem; overflow-y: auto;
-  font-size: 0.76rem; font-family: var(--mono);
-  border-top: 1px solid var(--grid);
+/* Chevron dessine en CSS (pas d'icone externe) : deux traits en V, teinte
+   --mute, repositionne si la largeur du select change. */
+.profile-select {
+  width: 100%;
+  appearance: none; -webkit-appearance: none;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--mute) 50%) calc(100% - 1.05rem) center / 0.4rem 0.4rem no-repeat,
+    linear-gradient(135deg, var(--mute) 50%, transparent 50%) calc(100% - 0.7rem) center / 0.4rem 0.4rem no-repeat,
+    var(--ink-inset);
+  color: var(--paper);
+  border: 1px solid var(--grid-strong); border-radius: 0.4rem;
+  padding: 0.42rem 2rem 0.42rem 0.6rem;
+  font: 0.78rem/1.4 var(--mono);
+  cursor: pointer;
 }
-.profile-list li {
-  padding: 0.32rem 0.5rem; cursor: pointer; border-radius: 0.35rem;
-  display: flex; align-items: center; gap: 0.45rem;
-}
-.profile-list li::before {
-  content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%;
-  background: var(--grid-strong); flex: none;
-}
-.profile-list li:hover { background: color-mix(in srgb, var(--paper) 6%, transparent); }
-.profile-list li.profile-active { color: var(--source-bright); font-weight: 600; }
-.profile-list li.profile-active::before { background: var(--source-bright); box-shadow: 0 0 0.35rem var(--source-bright); }
-.profile-list li[hidden] { display: none; }
+.profile-select:hover { border-color: var(--source); }
+.profile-select:focus-visible { outline: 2px solid var(--source-bright); outline-offset: 2px; }
+.profile-select option { background: var(--ink-inset); color: var(--paper); }
+.profile-select option[hidden] { display: none; }
 
 /* ---------- Stat tiles --------------------------------------------------- */
 
