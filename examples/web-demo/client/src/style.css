@@ -1,0 +1,24 @@
+/*
+ * Token system — palette sombre technique propre a cette demo (pas celle de
+ * la demo agent-core, cf. docs/superpowers/specs/2026-08-06-web-audio-demo-design.md).
+ */
+:root {
+  --ink: #0f1216;
+  --ink-raised: #171b21;
+  --paper: #e7e9ee;
+  --accent: #4fd1c5;
+  --accent-strong: #7ee8db;
+  --mute: #8891a3;
+  --alert: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
