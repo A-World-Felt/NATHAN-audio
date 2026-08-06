@@ -9,3 +9,6 @@ endif()
 
 add_executable(spatial_math_test spatial_math_test.cpp spatial_math.cpp)
 target_include_directories(spatial_math_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(frame_stats_test frame_stats_test.cpp frame_stats.cpp)
+target_include_directories(frame_stats_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
