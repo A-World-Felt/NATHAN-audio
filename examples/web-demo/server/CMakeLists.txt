@@ -12,3 +12,7 @@ target_include_directories(spatial_math_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 
 add_executable(frame_stats_test frame_stats_test.cpp frame_stats.cpp)
 target_include_directories(frame_stats_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_executable(state_json_test state_json_test.cpp state_json.cpp frame_stats.cpp)
+target_include_directories(state_json_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(state_json_test PRIVATE nlohmann_json::nlohmann_json)
