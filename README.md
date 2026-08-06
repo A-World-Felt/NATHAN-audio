@@ -173,6 +173,8 @@ nathan-audio/
 │   ├── audio_benchmark.cpp
 │   ├── house_benchmark.cpp
 │   └── CMakeLists.txt
+├── examples/
+│   └── web-demo/           ← démo web interactive (vitrine) — voir examples/web-demo/README.md
 ├── CMakeLists.txt
 ├── .gitignore
 ├── README.md
