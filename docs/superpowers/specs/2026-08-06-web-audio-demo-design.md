@@ -15,10 +15,10 @@ production, `benchmarks/` pour les prototypes validés comme `house_benchmark.cp
 
 Deux process locaux :
 
-1. **`web-demo/server/`** — un nouvel exécutable C++ (`web_demo_server`) qui réutilise tel
+1. **`examples/web-demo/server/`** — un nouvel exécutable C++ (`web_demo_server`) qui réutilise tel
    quel le code existant (voir « Réutilisation » plus bas) et expose son état + ses commandes
    via une petite API HTTP locale.
-2. **`web-demo/client/`** — une page web (Vite + TypeScript, DOM natif, pas de framework —
+2. **`examples/web-demo/client/`** — une page web (Vite + TypeScript, DOM natif, pas de framework —
    même esprit que `examples/web-chat` du repo `nathan-agent-core`) qui interroge cette API en
    boucle, affiche la scène (joueur/sprites/vecteurs), le sélecteur de profils et les
    métriques, et envoie la position de la souris et le profil choisi au serveur.
@@ -41,11 +41,11 @@ produisent le son.
 Nouveau code ajouté : la boucle de mise à jour continue (position flottante au lieu de la
 grille de `house_benchmark`), le serveur HTTP, et la sérialisation JSON de l'état.
 
-## `web-demo/server/` — détails
+## `examples/web-demo/server/` — détails
 
 ### Dépendance vendorée
 
-`web-demo/server/httplib.h` — [cpp-httplib](https://github.com/yhirose/cpp-httplib) (MIT,
+`examples/web-demo/server/httplib.h` — [cpp-httplib](https://github.com/yhirose/cpp-httplib) (MIT,
 header unique, aucune dépendance hors sockets), vendoré directement dans le repo, même
 convention que `benchmarks/src/dr_mp3.h`. Aucun changement à vcpkg.
 
@@ -131,13 +131,13 @@ avec ces paramètres.
 
 ### Build
 
-`web-demo/server/CMakeLists.txt` ajoute la cible `web_demo_server`, liée à `nathan_hrtf` et
+`examples/web-demo/server/CMakeLists.txt` ajoute la cible `web_demo_server`, liée à `nathan_hrtf` et
 `nathan_support` (+ `ws2_32` sous Windows pour `httplib.h`). Ajouté depuis la racine via
-`add_subdirectory(web-demo/server)`, avec un commentaire le distinguant clairement de
+`add_subdirectory(examples/web-demo/server)`, avec un commentaire le distinguant clairement de
 `src/`/`tools/` (production) et de `benchmarks/` (archive gelée) : c'est du code de démo, pas
 l'un ni l'autre.
 
-## `web-demo/client/` — détails
+## `examples/web-demo/client/` — détails
 
 Vite + TypeScript, DOM natif, français, palette sombre technique (même esprit que
 `examples/web-chat` de `nathan-agent-core`, sans en reprendre les couleurs — cf. son propre
@@ -169,7 +169,7 @@ produit : **profil**, **profil actif**, **bascule/basculer**, **catalogue**, **r
   change (même principe que le flash `.active` de la démo agent-core), pour rester lisible à
   l'enregistrement sans voix off.
 - Si le serveur ne répond pas : bannière « Aucun serveur audio ne répond sur
-  `http://127.0.0.1:8787`. Lance `web_demo_server` (voir `web-demo/README.md`) puis recharge
+  `http://127.0.0.1:8787`. Lance `web_demo_server` (voir `examples/web-demo/README.md`) puis recharge
   la page. » — même gabarit que la bannière « Ollama injoignable » de la démo agent-core.
 - URL du serveur configurable via `VITE_SERVER_URL` (défaut `http://127.0.0.1:8787`), même
   convention que `VITE_OLLAMA_HOST` dans `examples/web-chat`.
@@ -202,11 +202,11 @@ test). On reste cohérent avec ça :
 - Vérification visuelle : les métriques affichées correspondent à ce que retourne
   `GET /api/state` (pas de calcul dupliqué côté client qui pourrait diverger).
 
-## Lancement (documenté dans `web-demo/README.md`)
+## Lancement (documenté dans `examples/web-demo/README.md`)
 
 1. `./build/Debug/web_demo_server.exe` (ou `./build/web_demo_server` sur Linux) — démarre le
    moteur audio + l'API locale.
-2. `cd web-demo/client && npm install && npm run dev` — démarre la page, l'ouvrir dans le
+2. `cd examples/web-demo/client && npm install && npm run dev` — démarre la page, l'ouvrir dans le
    navigateur.
 
 Pour la vidéo : capturer le son du **bureau** (OBS, capture audio desktop), pas celui de
