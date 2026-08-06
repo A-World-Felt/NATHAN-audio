@@ -2,6 +2,7 @@ import { startPolling, type DemoState } from "./api";
 import { initScene } from "./scene";
 import { initMetrics } from "./metrics";
 import { initMp3Panel } from "./mp3panel";
+import { initProfileSelector } from "./profileSelector";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const sceneContainer = document.createElement("div");
@@ -9,13 +10,16 @@ sceneContainer.style.width = "600px";
 sceneContainer.style.height = "600px";
 const metricsContainer = document.createElement("div");
 const mp3Container = document.createElement("div");
+const profileContainer = document.createElement("div");
 app.appendChild(sceneContainer);
+app.appendChild(profileContainer);
 app.appendChild(metricsContainer);
 app.appendChild(mp3Container);
 
 const scene = initScene(sceneContainer);
 const metrics = initMetrics(metricsContainer);
 const mp3panel = initMp3Panel(mp3Container);
+const profileSelector = initProfileSelector(profileContainer);
 
 // Fixture temporaire (Task 9, verification visuelle sans backend) — sera
 // remplacee par le vrai polling ci-dessous des que web_demo_server tourne.
@@ -44,6 +48,7 @@ startPolling(
     scene.render(state);
     metrics.render(state);
     mp3panel.render(state);
+    profileSelector.render(state.profile.active);
   },
   () => {},
 );
