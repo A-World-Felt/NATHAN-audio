@@ -22,3 +22,11 @@ body {
   color: var(--paper);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+.scene-svg { width: 100%; height: 100%; background: var(--ink-raised); }
+.grid-line { stroke: color-mix(in srgb, var(--paper) 8%, transparent); stroke-width: 0.02; }
+.grid-line--major { stroke: color-mix(in srgb, var(--paper) 16%, transparent); }
+.scene-player { fill: var(--accent-strong); cursor: grab; }
+.scene-sprite { fill: var(--accent); }
+.scene-vector { stroke: var(--mute); stroke-width: 0.05; }
+.scene-vector-label, .scene-sprite-label { fill: var(--paper); font-size: 0.4px; font-family: ui-monospace, monospace; text-anchor: middle; }
