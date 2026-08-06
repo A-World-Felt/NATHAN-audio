@@ -4,14 +4,19 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
+#include <csignal>
 #include <cstdio>
 #include <filesystem>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include "hrtf/active_profile.h"
 #include "hrtf/config_paths.h"
@@ -24,6 +29,7 @@
 #include "wav_loader.h"
 
 #include "frame_stats.h"
+#include "shared_state.h"
 #include "spatial_math.h"
 #include "state_json.h"
 
@@ -152,32 +158,173 @@ int main() {
 
     std::array<LiveSource, kNumSources> live = createLiveSources(mp3Cache, wavCache);
 
+    std::error_code sizeErr;
+    std::uintmax_t mp3FileSize = fs::file_size(kSourceDefs[0].assetPath, sizeErr);
+
+    web_demo::SharedState shared;
+    for (const auto& p : catalog) shared.catalogIds.push_back(p.id);
+    shared.activeProfileId = startup.profile.id;
+
+    web_demo::ProfileState profileState{startup.profile.id, startup.profile.id,
+                                        startup.usedFallback, startup.fallbackReason};
+
+    httplib::Server svr;
+    svr.set_default_headers({{"Access-Control-Allow-Origin", "*"}});
+    svr.Options(R"(/api/.*)", [](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+        res.status = 204;
+    });
+
+    svr.Get("/api/profiles", [&](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(shared.mutex);
+        res.set_content(web_demo::buildProfilesJson(shared.catalogIds, shared.activeProfileId),
+                        "application/json");
+    });
+
+    svr.Get("/api/state", [&](const httplib::Request&, httplib::Response& res) {
+        std::lock_guard<std::mutex> lock(shared.mutex);
+        res.set_content(shared.latestStateJson, "application/json");
+    });
+
+    svr.Post("/api/player", [&](const httplib::Request& req, httplib::Response& res) {
+        web_demo::PlayerRequest pr;
+        if (!web_demo::parsePlayerBody(req.body, pr)) {
+            res.status = 400;
+            res.set_content(R"({"error":"corps invalide, attendu {\"x\":number,\"z\":number}"})",
+                            "application/json");
+            return;
+        }
+        std::lock_guard<std::mutex> lock(shared.mutex);
+        shared.requestedPlayerX = std::clamp(pr.x, -10.0f, 10.0f);
+        shared.requestedPlayerZ = std::clamp(pr.z, -10.0f, 10.0f);
+        res.status = 204;
+    });
+
+    svr.Post("/api/profile", [&](const httplib::Request& req, httplib::Response& res) {
+        std::string id;
+        if (!web_demo::parseProfileBody(req.body, id)) {
+            res.status = 400;
+            res.set_content(R"({"error":"corps invalide, attendu {\"id\":string}"})", "application/json");
+            return;
+        }
+
+        bool found = false;
+        for (const auto& p : catalog) found = found || (p.id == id);
+        if (!found) {
+            res.status = 404;
+            res.set_content(nlohmann::json{{"error", "Profil '" + id + "' introuvable dans le catalogue."}}.dump(),
+                            "application/json");
+            return;
+        }
+
+        std::unique_lock<std::mutex> lock(shared.mutex);
+        if (shared.pendingProfileSwitch.has_value() && !shared.pendingProfileSwitch->completed) {
+            res.status = 409;
+            res.set_content(R"({"error":"un changement de profil est deja en cours"})", "application/json");
+            return;
+        }
+        shared.pendingProfileSwitch = web_demo::ProfileSwitchRequest{id, false, false, ""};
+        shared.profileSwitchDone.wait(lock, [&] { return shared.pendingProfileSwitch->completed; });
+
+        if (!shared.pendingProfileSwitch->success) {
+            res.status = 500;
+            res.set_content(nlohmann::json{{"error", shared.pendingProfileSwitch->errorMessage}}.dump(),
+                            "application/json");
+            return;
+        }
+        res.set_content(shared.latestStateJson, "application/json");
+    });
+
+    std::atomic<bool> running{true};
+    std::thread httpThread([&] { svr.listen("127.0.0.1", 8787); });
+
+    std::signal(SIGINT, [](int) { std::exit(0); });  // Ctrl+C : sortie simple, cf. plan Task 6 note
+
     std::printf("=== NATHAN - Demo web (profil %s, HRTF: %s) ===\n", startup.profile.id.c_str(),
                 toString(context.status()).c_str());
-    std::printf("Boucle audio demarree (pas encore d'API HTTP — voir Task 6).\n");
+    std::printf("API HTTP : http://127.0.0.1:8787 (Ctrl+C pour quitter)\n");
     std::fflush(stdout);
 
     web_demo::RollingFrameStats frameStats(kFrameStatsWindow);
     std::size_t framesProcessed = 0;
+    double emaFps = 1000.0 / static_cast<double>(kFrameDuration.count());
+    auto frameStartPrev = std::chrono::steady_clock::now();
 
-    // Position joueur temporaire : un cercle de rayon 3m, pour verifier a
-    // l'oreille que le rendu spatial reagit bien, avant de la piloter par
-    // HTTP (Task 6).
-    auto sessionStart = std::chrono::steady_clock::now();
-
-    for (int i = 0; i < 400; ++i) {  // ~6 s a 15 ms/frame, largement assez pour verifier a l'oreille
+    while (running) {
         auto frameStart = std::chrono::steady_clock::now();
-        double elapsedSec = std::chrono::duration<double>(frameStart - sessionStart).count();
+        double periodSec = std::chrono::duration<double>(frameStart - frameStartPrev).count();
+        frameStartPrev = frameStart;
+        if (periodSec > 0.0) emaFps = emaFps * 0.9 + (1.0 / periodSec) * 0.1;
+
+        float playerX, playerZ;
+        std::optional<std::string> switchId;
+        {
+            std::lock_guard<std::mutex> lock(shared.mutex);
+            playerX = shared.requestedPlayerX;
+            playerZ = shared.requestedPlayerZ;
+            if (shared.pendingProfileSwitch.has_value() && !shared.pendingProfileSwitch->completed) {
+                switchId = shared.pendingProfileSwitch->requestedId;
+            }
+        }
+
+        bool switchJustCompleted = false;
+        bool switchSuccess = false;
+        std::string switchErrorMessage;
+
+        if (switchId.has_value()) {
+            switchSuccess = true;
+            const HrtfProfile* target = nullptr;
+            for (const auto& p : catalog) {
+                if (p.id == *switchId) target = &p;
+            }
+            try {
+                // ATTENTION (active_profile.h) : applyProfile detruit le
+                // device/contexte precedent — `live` devient invalide des
+                // cet appel, on ne doit jamais appeler alDelete* dessus.
+                applyProfile(*target, openalHrtfDirectory(), context);
+                alDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
+                live = createLiveSources(mp3Cache, wavCache);
+                profileState = {*switchId, startup.profile.id, false, ""};
+            } catch (const std::exception& e) {
+                switchSuccess = false;
+                switchErrorMessage = e.what();
+            }
+            switchJustCompleted = true;
+            // Ne pas marquer pendingProfileSwitch->completed / notifier ici :
+            // le thread HTTP en attente lirait shared.latestStateJson des son
+            // reveil, et cette frame ne l'a pas encore republie avec le
+            // profil a jour (voir plus bas, meme verrou que la publication).
+        }
 
         auto measureStart = std::chrono::high_resolution_clock::now();
 
-        float playerX = 3.0f * static_cast<float>(std::sin(elapsedSec));
-        float playerZ = -3.0f * static_cast<float>(std::cos(elapsedSec));
+        web_demo::DemoState state;
+        state.playerX = playerX;
+        state.playerZ = playerZ;
+        state.profile = profileState;
+        state.hrtf = {toString(context.status()), std::string(alGetString(AL_RENDERER)),
+                      std::string(alGetString(AL_VERSION)), std::string(alGetString(AL_VENDOR)), 0};
+        ALCint freq = 0;
+        alcGetIntegerv(context.device(), ALC_FREQUENCY, 1, &freq);
+        state.hrtf.sampleRateHz = freq;
 
-        for (std::size_t i2 = 0; i2 < kNumSources; ++i2) {
-            float relX = kSourceDefs[i2].worldX - playerX;
-            float relZ = kSourceDefs[i2].worldZ - playerZ;
-            alSource3f(live[i2].source, AL_POSITION, relX, 0.0f, relZ);
+        for (std::size_t i = 0; i < kNumSources; ++i) {
+            float relX = kSourceDefs[i].worldX - playerX;
+            float relZ = kSourceDefs[i].worldZ - playerZ;
+            alSource3f(live[i].source, AL_POSITION, relX, 0.0f, relZ);
+
+            web_demo::SourceState s;
+            s.id = kSourceDefs[i].id;
+            s.label = kSourceDefs[i].label;
+            s.asset = kSourceDefs[i].assetPath;
+            s.format = kSourceDefs[i].format;
+            s.posX = kSourceDefs[i].worldX;
+            s.posZ = kSourceDefs[i].worldZ;
+            s.distanceM = web_demo::distanceMeters(relX, relZ);
+            s.azimuthDeg = web_demo::azimuthDegrees(relX, relZ);
+            s.gain = web_demo::distanceGain(s.distanceM, kReferenceDistance, kMaxDistance, kRolloffFactor);
+            state.sources.push_back(s);
         }
 
         auto measureEnd = std::chrono::high_resolution_clock::now();
@@ -185,12 +332,35 @@ int main() {
         frameStats.addSample(frameUs);
         ++framesProcessed;
 
+        state.frameStats = frameStats.snapshot();
+        state.frameBudgetMs = std::chrono::duration<double, std::milli>(kFrameDuration).count();
+        state.fpsReal = emaFps;
+        state.framesProcessed = framesProcessed;
+        state.mp3 = {kSourceDefs[0].assetPath, static_cast<std::size_t>(mp3FileSize),
+                    static_cast<int>(mp3Cache.sampleRate), static_cast<int>(mp3Cache.channels),
+                    static_cast<double>(mp3Cache.samples.size() / mp3Cache.channels) / mp3Cache.sampleRate,
+                    mp3Cache.samples.size() / mp3Cache.channels};
+
+        {
+            std::lock_guard<std::mutex> lock(shared.mutex);
+            shared.latestStateJson = web_demo::buildStateJson(state);
+            if (switchJustCompleted) {
+                shared.pendingProfileSwitch->success = switchSuccess;
+                shared.pendingProfileSwitch->errorMessage = switchErrorMessage;
+                shared.pendingProfileSwitch->completed = true;
+                if (switchSuccess) shared.activeProfileId = *switchId;
+            }
+        }
+        // notify_all hors du verrou (evite de reveiller le thread HTTP pour
+        // qu'il se rebloque aussitot sur un mutex qu'on tient encore) ; les
+        // ecritures ci-dessus sont deja visibles grace au unlock qui precede.
+        if (switchJustCompleted) shared.profileSwitchDone.notify_all();
+
         std::this_thread::sleep_until(frameStart + kFrameDuration);
     }
 
-    std::printf("Frames traitees : %zu | Temps moyen : %.1f us\n", framesProcessed,
-                frameStats.snapshot().meanUs);
-
+    svr.stop();
+    httpThread.join();
     context.close();
     return 0;
 }
