@@ -1,8 +1,14 @@
 # Demo web (vitrine) : ni code de production (src/, tools/) ni prototype
 # d'exploration (benchmarks/) — voir docs/superpowers/specs/2026-08-06-web-audio-demo-design.md.
 
-add_executable(web_demo_server main.cpp)
+add_executable(web_demo_server
+    main.cpp
+    spatial_math.cpp
+    frame_stats.cpp
+    state_json.cpp
+)
 target_include_directories(web_demo_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(web_demo_server PRIVATE nathan_hrtf nathan_support nlohmann_json::nlohmann_json)
 if(WIN32)
     target_link_libraries(web_demo_server PRIVATE ws2_32)
 endif()
