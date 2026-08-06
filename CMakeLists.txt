@@ -15,3 +15,8 @@ add_subdirectory(tools)
 # Prototypes de la phase d'exploration, conserves comme reference
 # (voir benchmarks/README.md).
 add_subdirectory(benchmarks)
+
+# Demo web (vitrine) : reutilise src/hrtf + benchmarks/src via une API HTTP
+# locale. Ni code de production ni prototype d'exploration — voir
+# docs/superpowers/specs/2026-08-06-web-audio-demo-design.md.
+add_subdirectory(examples/web-demo/server)
