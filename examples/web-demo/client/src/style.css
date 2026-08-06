@@ -251,7 +251,15 @@ code {
  * Indicateur de focus natif SVG a la place : anneau existant, juste plus
  * epais et surligne, en unites utilisateur SVG qui suivent le viewBox.
  */
-.scene-player-group:focus-visible { outline: none; }
+/* !important : defense en profondeur — ce bug ne doit plus jamais pouvoir
+   reapparaitre via un pseudo-etat CSS qu'on aurait rate (:focus vs
+   :focus-visible se comportent differemment selon comment .focus() est
+   invoque en JS, cf. scene.ts pointerdown). */
+.scene-player-group:focus,
+.scene-player-group:focus-visible {
+  outline: none !important;
+}
+.scene-player-group:focus .scene-player-ring,
 .scene-player-group:focus-visible .scene-player-ring {
   stroke: var(--source-bright);
   stroke-width: 0.16;
