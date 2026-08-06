@@ -6,6 +6,12 @@
 // et audio_benchmark.cpp. 5 sources simultanees (au-dela du minimum R-AUD-03
 // de 4) pour tester une charge superieure au strict necessaire.
 //
+// Les 5 sources sont maintenant alimentees par le module de streaming MP3
+// (src/mp3_stream.h) plutot que par des buffers WAV charges entierement en
+// memoire : ce benchmark mesure donc separement deux couts CPU par frame :
+//   1) le decodage MP3 en streaming (mp3_stream_update, 5 flux),
+//   2) le traitement positionnel + EFX (ray casting, alSource3f/alSourcef).
+//
 // Modifier ce nom de profil selon celui a comparer (cf. assets/hrtf/*.sofa).
 #define HRTF_PROFILE "subject_003"
 
@@ -30,7 +36,7 @@
 #include "src/al_hrtf_device.h"
 #include "src/hrtf_profile.h"
 #include "src/input_keys.h"
-#include "src/wav_loader.h"
+#include "src/mp3_stream.h"
 
 namespace {
 
@@ -126,9 +132,9 @@ enum Room { kRoomCuisine = 0, kRoomSalon, kRoomChambre, kRoomSalleDeBain, kRoomS
 const char* const kRoomNames[kNumRooms] = {
     "Cuisine", "Salon", "Chambre", "Salle de bain", "Salle de musique",
 };
-const char* const kRoomWavFiles[kNumRooms] = {
-    "assets/test-audio.wav", "assets/test-audio2.wav", "assets/test-audio3.wav",
-    "assets/test-audio4.wav", "assets/test-audio5.wav",
+const char* const kRoomMp3Files[kNumRooms] = {
+    "assets/test-audio.mp3", "assets/test-audio2.mp3", "assets/test-audio3.mp3",
+    "assets/test-audio4.mp3", "assets/test-audio-48000Hz.mp3",
 };
 // Position fixe (dans le referentiel monde) de la source sonore de chaque piece.
 const WorldPos kSourcePos[kNumRooms] = {
@@ -181,27 +187,12 @@ std::string platformName() {
 #endif
 }
 
-// --- OpenAL : buffer + source mono en boucle -----------------------------
+// --- OpenAL : source en streaming (voir src/mp3_stream.h) ----------------
 
-ALuint makeBufferFromWav(const WavAudio& wav) {
-    ALuint buffer = 0;
-    alGenBuffers(1, &buffer);
-    std::vector<int16_t> pcm(wav.samples.size());
-    for (size_t i = 0; i < wav.samples.size(); ++i) {
-        pcm[i] = static_cast<int16_t>(std::lround(wav.samples[i] * 32767.0f));
-    }
-    alBufferData(buffer, AL_FORMAT_MONO16, pcm.data(),
-                 static_cast<ALsizei>(pcm.size() * sizeof(int16_t)),
-                 static_cast<ALsizei>(wav.sampleRate));
-    return buffer;
-}
-
-ALuint makeLoopingSource(ALuint buffer) {
+ALuint makeStreamedSource() {
     ALuint source = 0;
     alGenSources(1, &source);
-    alSourcei(source, AL_BUFFER, static_cast<ALint>(buffer));
-    alSourcei(source, AL_LOOPING, AL_TRUE);
-    alSourcef(source, AL_GAIN, 0.7f);
+    alSourcef(source, AL_GAIN, 0.7f);  // ecrase de toute facon a chaque frame selon l'attenuation
     return source;
 }
 
@@ -275,7 +266,7 @@ char sourceDigitAt(int x, int z) {
 }
 
 void renderFrame(const WorldPos& player, const std::string& statusLine1, const std::string& statusLine2,
-                  const std::string& statusLine3) {
+                  const std::string& statusLine3, const std::string& statusLine4) {
     std::fputs("\033[H", stdout);
     printPadded("=== NATHAN - Benchmark maison (5 pieces) ===");
     printPadded("Legende : @ joueur | 1 Cuisine 2 Salon 3 Chambre 4 SalleDeBain 5 SalleMusique | # mur | . sol");
@@ -306,6 +297,7 @@ void renderFrame(const WorldPos& player, const std::string& statusLine1, const s
     printPadded(statusLine1);
     printPadded(statusLine2);
     printPadded(statusLine3);
+    printPadded(statusLine4);
     std::fflush(stdout);
 }
 
@@ -358,8 +350,22 @@ FrameStats computeStats(std::vector<double> frameTimesUs) {
     return s;
 }
 
-std::string buildReport(const FrameStats& stats, const AlHrtfDevice& alDevice, double sessionDurationSec,
-                         bool efxReady) {
+void writeStatsBlock(std::ostringstream& out, const FrameStats& stats) {
+    out << "Frames traitees             : " << stats.count << "\n";
+    out << std::fixed << std::setprecision(2);
+    out << "Latence moyenne             : " << stats.meanUs << " us\n";
+    out << "Latence mediane             : " << stats.medianUs << " us\n";
+    out << "Latence min                 : " << stats.minUs << " us\n";
+    out << "Latence max                 : " << stats.maxUs << " us\n";
+    out << "Ecart-type                  : " << stats.stddevUs << " us\n";
+    out << "Percentile 95e              : " << stats.p95Us << " us\n";
+    out << "Percentile 99e              : " << stats.p99Us << " us\n";
+    out << "Temps CPU total (cumule)    : " << stats.totalMs << " ms\n";
+    out << std::defaultfloat;
+}
+
+std::string buildReport(const FrameStats& positionStats, const FrameStats& decodeStats,
+                         const AlHrtfDevice& alDevice, double sessionDurationSec, bool efxReady) {
     std::ostringstream out;
 
     std::time_t now = std::time(nullptr);
@@ -374,7 +380,9 @@ std::string buildReport(const FrameStats& stats, const AlHrtfDevice& alDevice, d
     alcGetIntegerv(alDevice.device(), ALC_FREQUENCY, 1, &freq);
 
     double frameBudgetUs = std::chrono::duration<double, std::micro>(kFrameDuration).count();
-    double cpuBudgetPercent = stats.count > 0 ? (stats.meanUs / frameBudgetUs) * 100.0 : 0.0;
+    double positionBudgetPercent = positionStats.count > 0 ? (positionStats.meanUs / frameBudgetUs) * 100.0 : 0.0;
+    double decodeBudgetPercent = decodeStats.count > 0 ? (decodeStats.meanUs / frameBudgetUs) * 100.0 : 0.0;
+    double combinedBudgetPercent = positionBudgetPercent + decodeBudgetPercent;
 
     out << "=== NATHAN - Benchmark maison (5 pieces, interactif) ===\n";
     out << "Date                      : " << std::put_time(&tmBuf, "%Y-%m-%d %H:%M:%S") << "\n";
@@ -387,28 +395,41 @@ std::string buildReport(const FrameStats& stats, const AlHrtfDevice& alDevice, d
     out << "EFX (reverb)              : " << (efxReady ? "actif" : "indisponible (degradation gracieuse)") << "\n";
     out << "Sources simultanees       : " << kNumRooms
         << " (au-dela du minimum R-AUD-03 de 4 - charge superieure)\n";
+    out << "Source audio               : MP3 en streaming (src/mp3_stream.h), " << kStreamBufferCount
+        << " buffers x " << kStreamFramesPerChunk << " frames par flux\n";
     out << "Duree de la session       : " << std::fixed << std::setprecision(1) << sessionDurationSec << " s\n";
     out << "Budget par frame          : " << (frameBudgetUs / 1000.0) << " ms (~"
         << std::setprecision(1) << (1000.0 / (frameBudgetUs / 1000.0)) << " FPS)\n";
     out << std::defaultfloat;
-    out << "\n--- Resultats (temps de traitement audio par frame) ---\n";
-    out << "Frames traitees           : " << stats.count << "\n";
-    out << std::fixed << std::setprecision(2);
-    out << "Latence moyenne             : " << stats.meanUs << " us\n";
-    out << "Latence mediane             : " << stats.medianUs << " us\n";
-    out << "Latence min                 : " << stats.minUs << " us\n";
-    out << "Latence max                 : " << stats.maxUs << " us\n";
-    out << "Ecart-type                 : " << stats.stddevUs << " us\n";
-    out << "Percentile 95e              : " << stats.p95Us << " us\n";
-    out << "Percentile 99e              : " << stats.p99Us << " us\n";
-    out << "Temps CPU total (traitement audio) : " << stats.totalMs << " ms\n";
-    out << "Budget temps reel utilise    : " << cpuBudgetPercent << " % (moyenne / " << (frameBudgetUs / 1000.0)
+
+    out << "\n--- Decodage MP3 (streaming, 5 flux, mp3_stream_update) ---\n";
+    writeStatsBlock(out, decodeStats);
+    out << std::fixed << std::setprecision(1);
+    out << "Budget temps reel utilise    : " << decodeBudgetPercent << " % (moyenne / " << (frameBudgetUs / 1000.0)
         << " ms)\n";
+    out << std::defaultfloat;
+
+    out << "\n--- Traitement positionnel + EFX (ray casting, alSource3f/alSourcef) ---\n";
+    writeStatsBlock(out, positionStats);
+    out << std::fixed << std::setprecision(1);
+    out << "Budget temps reel utilise    : " << positionBudgetPercent << " % (moyenne / " << (frameBudgetUs / 1000.0)
+        << " ms)\n";
+    out << std::defaultfloat;
+
+    out << "\n--- Cout CPU audio total (decodage + positionnel/EFX) ---\n";
+    out << std::fixed << std::setprecision(2);
+    out << "Temps moyen combine          : " << (decodeStats.meanUs + positionStats.meanUs) << " us\n";
+    out << std::setprecision(1);
+    out << "Budget temps reel utilise    : " << combinedBudgetPercent << " % (moyenne / " << (frameBudgetUs / 1000.0)
+        << " ms)\n";
+    out << std::defaultfloat;
 
     out << "\n--- Contenu mesure a chaque frame ---\n";
-    out << "Pour chacune des " << kNumRooms << " sources : position relative au joueur, ray casting\n";
-    out << "Bresenham (comptage de murs traverses) pour l'attenuation inter-pieces, appel alSource3f/alSourcef,\n";
-    out << "et selection de la reverb EFX de la piece du joueur (si changement de piece).\n";
+    out << "Decodage : mp3_stream_update() pour chacun des " << kNumRooms << " flux (remplissage des buffers\n";
+    out << "OpenAL traites depuis le dernier appel, via dr_mp3).\n";
+    out << "Positionnel/EFX : pour chacune des " << kNumRooms << " sources, position relative au joueur, ray\n";
+    out << "casting Bresenham (comptage de murs traverses) pour l'attenuation inter-pieces, appel\n";
+    out << "alSource3f/alSourcef, et selection de la reverb EFX de la piece du joueur (si changement de piece).\n";
 
     return out.str();
 }
@@ -432,18 +453,15 @@ int main() {
         return 1;
     }
 
-    ALuint buffers[kNumRooms] = {0, 0, 0, 0, 0};
     ALuint sources[kNumRooms] = {0, 0, 0, 0, 0};
+    Mp3Stream mp3Streams[kNumRooms];
     for (int i = 0; i < kNumRooms; ++i) {
-        WavAudio wav;
-        try {
-            wav = load_wav_mono16(kRoomWavFiles[i]);
-        } catch (const std::exception& e) {
-            std::fprintf(stderr, "Erreur de chargement WAV (%s) : %s\n", kRoomWavFiles[i], e.what());
+        sources[i] = makeStreamedSource();
+        if (!mp3_stream_open(mp3Streams[i], kRoomMp3Files[i], /*loop=*/true)) {
+            std::fprintf(stderr, "Erreur d'ouverture du flux MP3 (%s)\n", kRoomMp3Files[i]);
             return 1;
         }
-        buffers[i] = makeBufferFromWav(wav);
-        sources[i] = makeLoopingSource(buffers[i]);
+        mp3_stream_start(mp3Streams[i], sources[i]);  // remplit les premiers buffers et lance la lecture
     }
 
     EfxApi efx = loadEfxApi(alDevice.device());
@@ -461,8 +479,6 @@ int main() {
         efxReady = true;
     }
 
-    for (int i = 0; i < kNumRooms; ++i) alSourcePlay(sources[i]);
-
     std::printf("=== NATHAN - Benchmark maison (profil %s, HRTF: %s, EFX: %s) ===\n", HRTF_PROFILE,
                 alDevice.hrtfStatusString().c_str(), efxReady ? "actif" : "indisponible");
     std::printf("Fleches : deplacer le joueur | Q ou Echap : quitter et sauvegarder le rapport\n");
@@ -471,10 +487,16 @@ int main() {
     WorldPos player{4, 2};  // dans la Cuisine, a l'ecart de la source
     int lastRoom = -2;      // force la mise a jour de la reverb au premier tour
 
-    std::vector<double> frameTimesUs;
-    frameTimesUs.reserve(4096);
-    double runningSum = 0.0;
-    size_t runningCount = 0;
+    std::vector<double> decodeTimesUs;
+    decodeTimesUs.reserve(4096);
+    double runningDecodeSum = 0.0;
+    size_t runningDecodeCount = 0;
+
+    std::vector<double> positionTimesUs;
+    positionTimesUs.reserve(4096);
+    double runningPositionSum = 0.0;
+    size_t runningPositionCount = 0;
+
     double emaFps = 0.0;
     bool firstFrame = true;
 
@@ -499,8 +521,23 @@ int main() {
             emaFps = emaFps * 0.9 + instFps * 0.1;
         }
 
-        // --- Traitement audio mesure : positions + ray casting + EFX -----
-        auto measureStart = std::chrono::high_resolution_clock::now();
+        // --- Cout 1 : decodage MP3 en streaming, mesure separement -----------
+        // (remplissage des buffers OpenAL traites depuis la derniere frame,
+        // pour chacun des 5 flux ; la plupart des frames ne decodent rien -
+        // seul un buffer qui vient d'etre entierement joue declenche un
+        // decodage - d'ou une forte variance attendue entre moyenne et max).
+        auto decodeStart = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < kNumRooms; ++i) {
+            mp3_stream_update(mp3Streams[i], sources[i]);
+        }
+        auto decodeEnd = std::chrono::high_resolution_clock::now();
+        double decodeUs = std::chrono::duration<double, std::micro>(decodeEnd - decodeStart).count();
+        decodeTimesUs.push_back(decodeUs);
+        runningDecodeSum += decodeUs;
+        ++runningDecodeCount;
+
+        // --- Cout 2 : positions + ray casting + EFX, mesure separement ------
+        auto positionStart = std::chrono::high_resolution_clock::now();
 
         int currentRoom = roomAt(player.x, player.z);
         if (efxReady && currentRoom != lastRoom) {
@@ -520,11 +557,11 @@ int main() {
             alSourcef(sources[i], AL_GAIN, gain);
         }
 
-        auto measureEnd = std::chrono::high_resolution_clock::now();
-        double frameUs = std::chrono::duration<double, std::micro>(measureEnd - measureStart).count();
-        frameTimesUs.push_back(frameUs);
-        runningSum += frameUs;
-        ++runningCount;
+        auto positionEnd = std::chrono::high_resolution_clock::now();
+        double positionUs = std::chrono::duration<double, std::micro>(positionEnd - positionStart).count();
+        positionTimesUs.push_back(positionUs);
+        runningPositionSum += positionUs;
+        ++runningPositionCount;
         firstFrame = false;
 
         // --- Affichage ------------------------------------------------------
@@ -533,11 +570,14 @@ int main() {
                       currentRoom >= 0 ? kRoomNames[currentRoom] : "?",
                       efxReady ? presetNameForRoom(currentRoom >= 0 ? currentRoom : kRoomCuisine) : "n/a");
         char status2[96];
-        std::snprintf(status2, sizeof(status2), "Frame %6zu | Temps audio moyen (direct) : %7.1f us | FPS reel : %5.1f",
-                      runningCount, runningSum / static_cast<double>(runningCount), emaFps);
-        const std::string status3 = "Fleches : deplacer | Q / Echap : quitter et sauvegarder le rapport";
+        std::snprintf(status2, sizeof(status2), "Frame %6zu | Positionnel/EFX moyen : %7.1f us | FPS reel : %5.1f",
+                      runningPositionCount, runningPositionSum / static_cast<double>(runningPositionCount), emaFps);
+        char status3[96];
+        std::snprintf(status3, sizeof(status3), "Decodage MP3 (5 flux) moyen : %7.1f us | dernier : %7.1f us",
+                      runningDecodeSum / static_cast<double>(runningDecodeCount), decodeUs);
+        const std::string status4 = "Fleches : deplacer | Q / Echap : quitter et sauvegarder le rapport";
 
-        renderFrame(player, status1, status2, status3);
+        renderFrame(player, status1, status2, status3, status4);
 
         switch (poll_key_nonblocking()) {
             case KeyEvent::Up:
@@ -570,16 +610,17 @@ int main() {
         if (efxReady) {
             alSource3i(sources[i], AL_AUXILIARY_SEND_FILTER, 0, 0, AL_FILTER_NULL);
         }
+        mp3_stream_close(mp3Streams[i]);
         alDeleteSources(1, &sources[i]);
-        alDeleteBuffers(1, &buffers[i]);
     }
     if (efxReady) {
         efx.alDeleteAuxiliaryEffectSlots(1, &effectSlot);
         for (int i = 0; i < kNumRooms; ++i) efx.alDeleteEffects(1, &roomEffects[i]);
     }
 
-    FrameStats stats = computeStats(frameTimesUs);
-    std::string report = buildReport(stats, alDevice, sessionDurationSec, efxReady);
+    FrameStats decodeStats = computeStats(decodeTimesUs);
+    FrameStats positionStats = computeStats(positionTimesUs);
+    std::string report = buildReport(positionStats, decodeStats, alDevice, sessionDurationSec, efxReady);
 
     alDevice.close();
 

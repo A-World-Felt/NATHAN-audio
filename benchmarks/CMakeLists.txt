@@ -7,6 +7,7 @@ add_library(nathan_support STATIC
     src/al_hrtf_device.cpp
     src/input_keys.cpp
     src/mp3_loader.cpp
+    src/mp3_stream.cpp
 )
 target_include_directories(nathan_support PUBLIC src)
 target_link_libraries(nathan_support PUBLIC OpenAL::OpenAL mysofa::mysofa-shared)
