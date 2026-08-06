@@ -7,7 +7,30 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <div id="app"></div>
+    <div class="app">
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <h1>NATHAN-audio <span class="brand-sub">démo HRTF</span></h1>
+        </div>
+      </header>
+
+      <div class="unreachable" id="unreachable" hidden role="alert">
+        <p>
+          Aucun serveur audio ne répond sur <code id="unreachableHost"></code>.
+          Lance <code>web_demo_server</code> (voir <code>examples/web-demo/README.md</code>) puis recharge la page.
+        </p>
+      </div>
+
+      <div class="layout">
+        <aside class="left-col" aria-label="Profils et métriques">
+          <div id="profileSelector"></div>
+          <div id="metrics"></div>
+          <div id="mp3panel"></div>
+        </aside>
+        <main class="scene-col" id="sceneContainer" aria-label="Scène spatiale"></main>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
