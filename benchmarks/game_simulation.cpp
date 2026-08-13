@@ -28,7 +28,7 @@
 #include "src/al_hrtf_device.h"
 #include "src/hrtf_profile.h"
 #include "src/input_keys.h"
-#include "src/wav_loader.h"
+#include "src/mp3_stream.h"
 
 namespace {
 
@@ -87,29 +87,6 @@ int countWallsBetween(WorldPos a, WorldPos b) {
     return count;
 }
 
-// --- OpenAL : buffer + source mono en boucle -----------------------------
-
-ALuint makeBufferFromWav(const WavAudio& wav) {
-    ALuint buffer = 0;
-    alGenBuffers(1, &buffer);
-    std::vector<int16_t> pcm(wav.samples.size());
-    for (size_t i = 0; i < wav.samples.size(); ++i) {
-        pcm[i] = static_cast<int16_t>(std::lround(wav.samples[i] * 32767.0f));
-    }
-    alBufferData(buffer, AL_FORMAT_MONO16, pcm.data(),
-                 static_cast<ALsizei>(pcm.size() * sizeof(int16_t)),
-                 static_cast<ALsizei>(wav.sampleRate));
-    return buffer;
-}
-
-ALuint makeLoopingSource(ALuint buffer) {
-    ALuint source = 0;
-    alGenSources(1, &source);
-    alSourcei(source, AL_BUFFER, static_cast<ALint>(buffer));
-    alSourcei(source, AL_LOOPING, AL_TRUE);
-    return source;
-}
-
 // Applique directement la position relative recue du "SoundScape" au
 // pipeline HRTF d'OpenAL Soft. C'est tout le contrat : (relX,relY,relZ) in,
 // alSource3f out.
@@ -118,7 +95,6 @@ void applyRelativePosition(ALuint source, float relX, float relY, float relZ) {
 }
 
 // --- EFX (reverb) : charge dynamiquement, comme ALC_SOFT_HRTF -----------
-
 struct EfxApi {
     LPALGENEFFECTS alGenEffects = nullptr;
     LPALDELETEEFFECTS alDeleteEffects = nullptr;
@@ -174,7 +150,6 @@ ALuint createReverbEffect(const EfxApi& efx, const EFXEAXREVERBPROPERTIES& prese
 }
 
 // --- Rendu terminal --------------------------------------------------------
-
 void printPadded(std::string line, size_t width = 70) {
     if (line.size() < width) line.append(width - line.size(), ' ');
     std::fputs(line.c_str(), stdout);
@@ -240,17 +215,17 @@ int main() {
         return 1;
     }
 
-    WavAudio wav;
-    try {
-        wav = load_wav_mono16("assets/test-audio.wav");
-    } catch (const std::exception& e) {
-        std::fprintf(stderr, "Erreur de chargement WAV : %s\n", e.what());
+    // --- Source + flux MP3 en streaming ------------------------------------
+    ALuint source = 0;
+    alGenSources(1, &source);
+    // Pas de AL_LOOPING ici : le bouclage est gere par mp3_stream_update.
+
+    Mp3Stream mp3Stream;
+    if (!mp3_stream_open(mp3Stream, "assets/test-audio-48000Hz.mp3", /*loop=*/true)) {
+        std::fprintf(stderr, "Erreur d'ouverture du flux MP3\n");
         return 1;
     }
-
-    ALuint buffer = makeBufferFromWav(wav);
-    ALuint source = makeLoopingSource(buffer);
-    alSourcePlay(source);
+    mp3_stream_start(mp3Stream, source);
 
     EfxApi efx = loadEfxApi(alDevice.device());
     ALuint effectSlot = 0, roomEffect = 0, farEffect = 0;
@@ -275,6 +250,8 @@ int main() {
 
         bool running = true;
         while (running) {
+            mp3_stream_update(mp3Stream, source);
+
             double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
             double thetaRad = (t / kRevolutionSec) * 2.0 * 3.14159265358979323846;
             float actorXf = kCircleRadius * static_cast<float>(std::sin(thetaRad));
@@ -323,6 +300,8 @@ int main() {
 
         bool running = true;
         while (running) {
+            mp3_stream_update(mp3Stream, source);
+
             int wallCount = countWallsBetween(player, actor);
             bool sameRoom = (wallCount == 0);
 
@@ -384,8 +363,8 @@ int main() {
         efx.alDeleteEffects(1, &roomEffect);
         efx.alDeleteEffects(1, &farEffect);
     }
+    mp3_stream_close(mp3Stream);
     alDeleteSources(1, &source);
-    alDeleteBuffers(1, &buffer);
     alDevice.close();
 
     std::printf("\nSimulation terminee.\n");
